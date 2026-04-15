@@ -70,6 +70,20 @@ npm run figma:cache:validate
 
 ---
 
+## Cursor 模板固定流程（强制建议）
+
+- 单一真源：仅手工维护 `cursor-bootstrap/` 下的 rules/skills。
+- 镜像目录：`.cursor/` 视为生成产物，不手工编辑。
+- 日常步骤：
+  1) 修改 `cursor-bootstrap/*`
+  2) 运行 `npm run cursor:shadow:sync`
+  3) 运行 `npm run cursor:shadow:check`
+- 守护机制：
+  - CI 会执行 `cursor:shadow:check`，若 `.cursor` 与 `cursor-bootstrap` 不一致将直接失败。
+  - `npm test` 与 `prepack` 也已包含该检查，避免本地漏同步。
+
+---
+
 ## 默认 completeness 与 token 开销
 
 默认 completeness：`layout,text,tokens,interactions,states,accessibility`（默认不含 `flow/assets`）。

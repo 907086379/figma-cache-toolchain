@@ -1,4 +1,4 @@
-﻿---
+---
 description: 栈占位：由 Agent 按项目 UI 技术栈生成 02-figma-<stack>-adapter.mdc 后再实现业务 UI（本文件可删除或 alwaysApply 保持 false）
 alwaysApply: false
 ---
@@ -18,37 +18,15 @@ alwaysApply: false
 - **单一事实来源**：实现 UI 时只从 `raw.json`、`spec.md`、`state-map.md`、`meta.json` 取数；不在这些通用文件里写入框架专有代码或路由名。
 - **仅当任务包含「写/改业务 UI」且缓存可读**时，才应用具体栈的 Adapter；纯缓存维护、只跑 CLI，不触发表现层规则。
 
-## 双源参考与去冗余（强制）
-
-进入业务 UI 实现阶段时，允许同时参考 `raw.json/spec.md` 与 `mcp-raw/*`，但必须遵守“主次分层”，禁止等权混用：
-
-- **主源（默认）**：先用 `raw.json`、`spec.md`、`meta.json`、`state-map.md` 生成组件骨架、布局与 token 映射。
-- **辅源（按需）**：仅当出现字段缺口或冲突时，再读取 `mcp-raw/*` 做证据补充与消歧。
-- **禁用策略**：禁止把 `mcp-raw-get-design-context.txt` 的示例 JSX/类名直接当成最终实现；其定位是参考草稿，不是交付代码。
-
-### 何时读取 mcp-raw（最小化触发）
-
-仅在以下情况之一成立时读取 `mcp-raw`：
-
-1. 结构层级、文案或尺寸在通用缓存中缺失。
-2. 状态/交互语义（展开、禁用、hover、focus）无法由 `state-map.md` 明确。
-3. 视觉细节存在冲突，需要原始回包做最终裁决。
-
-### 去冗余要求
-
-- 同一设计事实只允许一个主证据来源；补证据只补“缺口字段”，不重复抄写已有结论。
-- 输出实现说明时，关键样式/结构决策需标注来源文件（例如：`raw.json` 或 `mcp-raw-get-design-context.txt`）。
-- 若 `raw.json.coverageSummary.missing` 含 `interactions/states/accessibility/flow/assets`，必须先声明缺口与影响，禁止声称可 1:1 完整还原。
-
-## React 参考复用（选用规则）
+## React 直复用（选用规则）
 
 仅当 Agent 识别目标项目为 **React 栈**（如 React + Tailwind / React + CSS Modules / React + styled-system）时启用：
 
-- 可在“主源骨架已确定”后，局部参考 `mcp-raw-get-design-context.txt` 的 React 片段加速实现。
-- 复用时仅保留可验证结构，不直接继承其硬编码样式；需映射到项目 token、组件与状态模型。
+- 优先复用节点目录下 `mcp-raw-get-design-context.txt` 的 React 参考代码作为起稿。
+- 在此基础上仅做必要微调：项目 token 映射、组件替换、状态/交互逻辑、数据绑定、可访问性与响应式。
 - 若项目非 React 栈，禁止直接复用该 React 代码，应按目标栈 Adapter 规则转换实现。
-- 改动应聚焦“接入项目规范与可维护性”，避免为贴合示例代码而重写已稳定结构。
+- 复用时优先保持结构与视觉一致性；改动应聚焦“接入项目规范”而非重写布局。
 
 ## 参考实现（非默认）
 
-安装 **`figma-cache-toolchain`** 后，示例路径为 **`node_modules/figma-cache-toolchain/cursor-bootstrap/examples/vue2-vuetify2-adapter.reference.mdc`**（Vue 2 + Vuetify 2 全文参考），需时由 Agent 读入并改写为你的 `.cursor/rules/02-figma-...`。
+安装本包后，示例路径为 **`node_modules/figma-cache-toolchain/cursor-bootstrap/examples/vue2-vuetify2-adapter.reference.mdc`**（Vue 2 + Vuetify 2 全文参考），需时由 Agent 读入并改写为你的 `.cursor/rules/02-figma-...`。
