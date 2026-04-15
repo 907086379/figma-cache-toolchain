@@ -1,0 +1,12 @@
+---
+description: 提交文案约定（Conventional Commit + 中文结果导向）
+alwaysApply: true
+---
+
+# 提交文案约定
+
+- 仅在“写提交信息/执行提交”场景应用本规则。
+- 标题：`<type>(<scope>): <中文结果导向描述>`，`scope` 可省略。
+- `type` 常用：`feat`、`fix`、`refactor`、`docs`、`chore`、`test`。
+- 正文 2-5 条（如果有必要可以增加或者减少），先业务影响与风险，再实现要点。
+- 避免空话与敏感信息；输出用代码块便于复制。

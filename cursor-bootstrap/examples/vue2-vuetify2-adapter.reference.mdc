@@ -1,0 +1,25 @@
+---
+description: 在通用 figma-cache 就绪后，将设计事实映射为 Vue 2 + Vuetify 2 实现（参考示例，按需复制到 .cursor/rules/）
+alwaysApply: false
+---
+
+# Figma → Vuetify 2 Adapter（表现层）
+
+当任务为 **编写或修改 Vue 2 前端代码** 且依赖 Figma 设计稿时，在 **01-figma-cache-core** 已完成或确认可读的通用缓存（`raw.json`、`spec.md`、`state-map.md`）基础上，遵守本规则做 **Vuetify 2** 映射。
+
+## 前置
+1. 缓存状态由 Core 规则处理；若尚无缓存，先按 Core 流程 `ensure` / MCP / `validate`。
+2. 若节点目录下存在由 `postEnsure` 生成的栈说明文件（如 **`vuetify2-mapping.mdc`**），实现前可快速浏览其中的引导。
+
+## 映射原则
+- **单一事实来源**：尺寸、颜色、文案、状态以 `figma-cache` 中通用文件为准，不在业务代码里硬抄未经验证的截图值。
+- **组件与主题**：优先使用 **Vuetify 2** 内置组件（`v-btn`、`v-card`、`v-text-field` 等）与现有工程里的主题/SCSS/Uno（`tw-*`）约定；Options API、与项目既有约定一致。
+- **不污染 Core**：不在 `figma-cache/files/**` 的 `meta.json`、`raw.json`、`spec.md` 中写入 Vuetify 或路由等业务专有内容；框架说明写在节点侧 hint 或业务源码中。
+
+## 与 Core 的边界
+| 阶段 | 负责规则 | 产出 |
+| --- | --- | --- |
+| 拉数与索引 | 01-figma-cache-core | 通用 JSON/Markdown |
+| 组件与样式落地 | 本规则 | Vue 2 SFC、Vuetify 模板与样式 |
+
+若任务仅为更新缓存、无 UI 编码，**不要**应用本规则中的组件映射条款。

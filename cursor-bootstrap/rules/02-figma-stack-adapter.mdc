@@ -1,0 +1,32 @@
+---
+description: 栈占位：由 Agent 按项目 UI 技术栈生成 02-figma-<stack>-adapter.mdc 后再实现业务 UI（本文件可删除或 alwaysApply 保持 false）
+alwaysApply: false
+---
+
+# Figma → UI Stack Adapter（占位）
+
+本文件是 **通用脚手架**，不绑定 Vue / React / 任何组件库。若你已有具体栈的 Adapter 规则（例如 `02-figma-vuetify2-adapter.mdc`、`02-figma-react-mui-adapter.mdc`），可将本文件删除，或在 Cursor 设置中不再引用本文件。
+
+## 第一步：用 Agent 生成栈专属规则
+
+在项目根执行 `npx figma-cache cursor init` 后，打开 **`AGENT-SETUP-PROMPT.md`**，在 Cursor 里 **`@AGENT-SETUP-PROMPT.md`** 或整篇粘贴给 Agent，让其按文档顺序执行（含推断栈、生成配置、删除本占位文件）。若你更习惯手写，也可自行新建 `02-figma-<栈>-adapter.mdc` 与 `figma-cache.config.js`，再删除本文件。
+
+生成后，**01-figma-cache-core** 仍只负责缓存与校验；**表现层**仅由你的 `02-figma-*-adapter` 约束。
+
+## 与 01 的固定边界
+
+- **单一事实来源**：实现 UI 时只从 `raw.json`、`spec.md`、`state-map.md`、`meta.json` 取数；不在这些通用文件里写入框架专有代码或路由名。
+- **仅当任务包含「写/改业务 UI」且缓存可读**时，才应用具体栈的 Adapter；纯缓存维护、只跑 CLI，不触发表现层规则。
+
+## React 直复用（选用规则）
+
+仅当 Agent 识别目标项目为 **React 栈**（如 React + Tailwind / React + CSS Modules / React + styled-system）时启用：
+
+- 优先复用节点目录下 `mcp-raw-get-design-context.txt` 的 React 参考代码作为起稿。
+- 在此基础上仅做必要微调：项目 token 映射、组件替换、状态/交互逻辑、数据绑定、可访问性与响应式。
+- 若项目非 React 栈，禁止直接复用该 React 代码，应按目标栈 Adapter 规则转换实现。
+- 复用时优先保持结构与视觉一致性；改动应聚焦“接入项目规范”而非重写布局。
+
+## 参考实现（非默认）
+
+安装本包后，示例路径为 **`node_modules/figma-cache-toolchain/cursor-bootstrap/examples/vue2-vuetify2-adapter.reference.mdc`**（Vue 2 + Vuetify 2 全文参考），需时由 Agent 读入并改写为你的 `.cursor/rules/02-figma-...`。
