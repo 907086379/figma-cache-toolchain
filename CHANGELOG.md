@@ -1,8 +1,19 @@
-﻿# Changelog
+# Changelog
 
 本文件记录 **对外发布**（npm）时建议同步更新的变更。仓库内日常迭代可只写 Git commit message；发版前将本条目下的 **Unreleased** 归并到新版本号。
 
 ## Unreleased
+
+- 暂无
+
+## 1.4.5（2026-04-15）
+
+- **文档重构**：重写 `figma-cache/docs/colleague-guide-zh.md`，统一为最新流程口径（缓存优先、证据门禁、validate 闭环、flow 白名单）。
+- **入口增强**：新增 `figma-cache/docs/quick-start-zh.md` 一页式速查卡，并在根 `README.md` 与 `figma-cache/docs/README.md` 增加入口导航。
+- **首页说明优化**：更新根 `README.md` 顶部描述与协作建议，强调“本地缓存优先 + 按需 MCP + 最小调用集 + 严格证据校验”。
+- **流程防回归沉淀**：在命令执行防回归规则中新增 PowerShell 反引号转义案例，降低文档写入误改风险。
+
+## 1.4.4（2026-04-15）
 
 - **`cursor init` 配置文件体验优化**：默认确保项目根 `figma-cache.config.js`，并在可安全判定时自动清理 legacy `figma-cache.config.example.js`，避免流程完成后残留示例文件造成混淆。
 - **postEnsure 默认优化**：`figma-cache.config.example.js` 的 adapter 提示改为目录级单文件（`figma-cache/docs/figma-cache-adapter-hint.md`）默认写入，避免每节点重复生成。

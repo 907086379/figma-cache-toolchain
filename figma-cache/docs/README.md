@@ -13,7 +13,7 @@
 
 说明：**`cursor init`** 与 **`figma-cache init`** 是两件事；后者才是本地缓存数据目录与空索引。仓库根 **`README.md`**（npm 包首页文档）中有与上述一致的「四步」说明。
 
-团队向长文（可转发同事）：**`colleague-guide-zh.md`**。
+团队向长文（可转发同事）：**`colleague-guide-zh.md`**。`quick-start-zh.md` 可作新人一页式速查入口。
 
 ## 使用方式（重要）
 
@@ -28,6 +28,7 @@
 - `figma-cache/files/...`：节点缓存内容
 - **`figma-cache/docs/README.md`**：接入、scripts、环境变量、人工校验与回填（本文件，随包分发的主文档）
 - **`figma-cache/docs/colleague-guide-zh.md`**：团队向说明与提示词模板；**`npx figma-cache cursor init` 会写入/刷新**（与 `FIGMA_CACHE_DIR` 下路径一致），便于纳入版本库、不必从 `node_modules` 手抄
+- `figma-cache/docs/quick-start-zh.md`：一页式同事速查卡（建议新人先读）
 - `figma-cache/docs/link-normalization-spec.md`：链接标准化规则（Core / Skill 会引用）
 - `figma-cache/docs/flow-edge-taxonomy.md`：流程边类型约定
 
@@ -61,6 +62,9 @@ npm run figma:cache:config
 - `npm run figma:cache:upsert -- "<figma-url>" --source=figma-mcp --completeness=layout,text,tokens --allow-skeleton-with-figma-mcp`（仅写骨架，后续仍需 `validate` 通过）
 - `npm run figma:cache:ensure -- "<figma-url>" --source=figma-mcp --completeness=layout,text,tokens --allow-skeleton-with-figma-mcp`（仅写骨架，后续仍需 `validate` 通过）
 - 若不传 `--completeness`，CLI 默认即使用：`layout,text,tokens,interactions,states,accessibility`
+- 自动追加 `flow` 仅限白名单：关系关键词（关联/流程/跳转/前后页/上一步/下一步/分支/链路/路径/from/to/next/branch），或同轮/断续多链接且明确先后/串联意图
+- 单链接且无关系意图、仅视觉微调、仅资产导出时，不自动追加 `flow`
+- 若自动追加了 `flow`，Agent 输出中必须记录触发原因：`关键词命中` 或 `多链接串联意图`
 - `npm run figma:cache:validate`
 - `npm run figma:cache:budget`（默认 `--mcp-only`）
 - `npm run figma:cache:stale`

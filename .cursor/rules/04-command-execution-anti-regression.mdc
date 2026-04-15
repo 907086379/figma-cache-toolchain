@@ -27,6 +27,14 @@ alwaysApply: true
 ## 已知故障案例（持续追加）
 - 2026-04-15 | PowerShell 执行文本替换 | `node -e` 字符串在传参时被 PowerShell 转义破坏 | `node -e "...复杂替换逻辑..."` | 改为 here-string + `node -` 或写临时 `.js` 文件执行 | 替换脚本可稳定运行且目标文件回读正确
 
+- 2026-04-15 | PowerShell here-string 批量替换 README/JSON | here-string 起始行后直接跟正文导致解析失败 | `$text = @'...`（头部写法不规范） | 改为临时 `.js` 文件后执行 `node <temp-file>` | 批量替换稳定执行且回读正确
+
+- 2026-04-15 | PowerShell 生成脚本模板落盘 | 多层字符串转义导致正则/换行在目标 JS 中失真 | 通过中间模板字符串写入复杂 JS 内容 | 改为 here-string + UTF-8 无 BOM 整段重写目标文件并立即回读 | 修复后脚本可执行并正确生成 mobile-spec.json
+
+- 2026-04-15 | PowerShell 执行临时 Node 脚本生成文档 | 模板字符串内包含 Markdown 代码围栏（```）导致 JS 字符串提前闭合 | 在 .js 模板字符串中直接内嵌 ```bash 代码块 | 改为字符串数组逐行 join 写入，继续使用临时 .js 文件执行 | 发版文件更新成功，回读与校验通过
+
+- 2026-04-15 | PowerShell 直接写 Markdown 含反引号路径 | 反引号在双引号字符串中被当作转义，写入了异常控制字符 | 在双引号字符串里直接写 `figma-cache/docs/*.md` 行 | 改为单引号字符串或 here-string 写入，再按关键词二次回读校验 | README 路径行已修复，编码检查通过
+
 ## 输出要求
 - 当本轮触发过此类失败，最终回复需明确：
   - 是否已按本规则完成替代执行；
