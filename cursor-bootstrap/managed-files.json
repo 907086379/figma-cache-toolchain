@@ -1,0 +1,41 @@
+{
+  "managedFiles": [
+    {
+      "from": "rules/00-output-token-budget.mdc",
+      "to": ".cursor/rules/00-output-token-budget.mdc"
+    },
+    {
+      "from": "rules/01-figma-cache-core.mdc",
+      "to": ".cursor/rules/01-figma-cache-core.mdc"
+    },
+    {
+      "from": "rules/02-figma-stack-adapter.mdc",
+      "to": ".cursor/rules/02-figma-stack-adapter.mdc"
+    },
+    {
+      "from": "rules/03-figma-ui-implementation-hard-constraints.mdc",
+      "to": ".cursor/rules/03-figma-ui-implementation-hard-constraints.mdc"
+    },
+    {
+      "from": "rules/04-ui-baseline-governance.mdc",
+      "to": ".cursor/rules/04-ui-baseline-governance.mdc"
+    },
+    {
+      "from": "rules/figma-local-cache-first.mdc",
+      "to": ".cursor/rules/figma-local-cache-first.mdc"
+    },
+    {
+      "from": "skills/figma-mcp-local-cache/SKILL.md",
+      "to": ".cursor/skills/figma-mcp-local-cache/SKILL.md"
+    },
+    {
+      "from": "skills/figma-ui-dual-mode-execution/SKILL.md",
+      "to": ".cursor/skills/figma-ui-dual-mode-execution/SKILL.md"
+    }
+  ],
+  "retiredFiles": [
+    ".cursor/skills/ui-baseline-governance/SKILL.md",
+    ".cursor/rules/04-command-execution-anti-regression.mdc",
+    ".cursor/rules/commit-conventions.mdc"
+  ]
+}

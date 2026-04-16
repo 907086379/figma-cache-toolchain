@@ -6,14 +6,7 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 const BOOTSTRAP = path.join(ROOT, "cursor-bootstrap");
-
-const pairs = [
-  ["rules/00-output-token-budget.mdc", ".cursor/rules/00-output-token-budget.mdc"],
-  ["rules/01-figma-cache-core.mdc", ".cursor/rules/01-figma-cache-core.mdc"],
-  ["rules/02-figma-stack-adapter.mdc", ".cursor/rules/02-figma-stack-adapter.mdc"],
-  ["rules/figma-local-cache-first.mdc", ".cursor/rules/figma-local-cache-first.mdc"],
-  ["skills/figma-mcp-local-cache/SKILL.md", ".cursor/skills/figma-mcp-local-cache/SKILL.md"],
-];
+const MANAGED_FILES_PATH = path.join(BOOTSTRAP, "managed-files.json");
 
 function readUtf8(absPath) {
   return fs.readFileSync(absPath, "utf8");
@@ -23,9 +16,41 @@ function normalize(relPath) {
   return relPath.replace(/\\/g, "/");
 }
 
+function loadManifest() {
+  if (!fs.existsSync(MANAGED_FILES_PATH)) {
+    throw new Error(`Missing managed files manifest: ${MANAGED_FILES_PATH}`);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(readUtf8(MANAGED_FILES_PATH));
+  } catch (error) {
+    throw new Error(`Invalid JSON in managed files manifest: ${error.message}`);
+  }
+
+  const { managedFiles, retiredFiles } = parsed || {};
+  if (!Array.isArray(managedFiles) || managedFiles.length === 0) {
+    throw new Error("managed-files.json must contain a non-empty managedFiles array");
+  }
+
+  const pairs = managedFiles.map((item, index) => {
+    if (!item || typeof item.from !== "string" || typeof item.to !== "string") {
+      throw new Error(`Invalid managedFiles[${index}] entry; expected { from, to } strings`);
+    }
+    return [item.from, item.to];
+  });
+
+  const retired = Array.isArray(retiredFiles)
+    ? retiredFiles.filter((item) => typeof item === "string" && item.trim())
+    : [];
+
+  return { pairs, retired };
+}
+
 function main() {
   const errors = [];
   const checked = [];
+  const { pairs, retired } = loadManifest();
 
   for (const [from, to] of pairs) {
     const src = path.join(BOOTSTRAP, from);
@@ -52,6 +77,13 @@ function main() {
     checked.push({ from: fromNorm, to: toNorm });
   }
 
+  const retiredExisting = retired
+    .filter((relPath) => fs.existsSync(path.join(ROOT, relPath)))
+    .map((relPath) => normalize(relPath));
+  if (retiredExisting.length) {
+    errors.push(`retired mirror files still exist: ${retiredExisting.join(", ")}`);
+  }
+
   if (errors.length) {
     process.stderr.write(
       `[cursor-shadow:check] failed\n- ${errors.join("\n- ")}\nRun: npm run cursor:shadow:sync\n`
@@ -63,6 +95,7 @@ function main() {
     `${JSON.stringify(
       {
         ok: true,
+        sourceOfTruth: "cursor-bootstrap/managed-files.json",
         checked,
       },
       null,

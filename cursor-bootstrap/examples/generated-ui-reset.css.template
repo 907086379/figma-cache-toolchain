@@ -1,0 +1,32 @@
+﻿/* Generated UI local reset (scoped) */
+
+:where(.generate-ui-reset),
+:where(.generate-ui-reset *) {
+  box-sizing: border-box;
+}
+
+:where(.generate-ui-reset img),
+:where(.generate-ui-reset svg),
+:where(.generate-ui-reset video),
+:where(.generate-ui-reset canvas) {
+  display: block;
+  max-width: 100%;
+}
+
+:where(.generate-ui-reset input),
+:where(.generate-ui-reset select),
+:where(.generate-ui-reset textarea),
+:where(.generate-ui-reset button),
+:where(.generate-ui-reset a) {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+/* Optional strict mode for high-fidelity pages only */
+:where(.generate-ui-reset--strict input),
+:where(.generate-ui-reset--strict select),
+:where(.generate-ui-reset--strict textarea) {
+  margin: 0;
+  border-radius: 0;
+}

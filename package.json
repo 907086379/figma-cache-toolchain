@@ -1,6 +1,6 @@
 {
   "name": "figma-cache-toolchain",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Figma link normalization, local cache index, validation, and Node CLI (framework-agnostic core).",
   "homepage": "https://github.com/907086379/figma-cache-toolchain#readme",
   "keywords": [
@@ -59,7 +59,8 @@
     "cursor:shadow:sync": "node scripts/sync-cursor-shadow.js",
     "cursor:shadow:check": "node scripts/check-cursor-shadow.js",
     "docs:encoding:check": "node scripts/check-doc-encoding.js",
-    "figma:cache:mobile:spec": "node scripts/mobile/generate-mobile-spec.js"
+    "figma:cache:mobile:spec": "node scripts/mobile/generate-mobile-spec.js",
+    "figma:ui:gate": "npm run figma:cache:validate && npm run cursor:shadow:check && npm test"
   },
   "volta": {
     "node": "16.20.2"

@@ -349,6 +349,34 @@ assert.ok(exitCode > 0, "unknown command should exit non-zero");
 
   const configBody = fs.readFileSync(configPath, "utf8");
   assert.ok(configBody.includes("module.exports"), "generated config should be valid JS module");
+
+  const keepExistingOutput = runInDir("cursor init", tempRoot, env);
+  const keepResult = JSON.parse(keepExistingOutput.split(/\r?\n\r?\n/)[0]);
+  assert.ok(keepResult.skipped >= 1, "default cursor init should keep existing .cursor templates");
+
+  const overwriteOutput = runInDir("cursor init --overwrite", tempRoot, env);
+  const overwriteResult = JSON.parse(overwriteOutput.split(/\r?\n\r?\n/)[0]);
+  assert.strictEqual(overwriteResult.overwrite, true, "cursor init --overwrite should enable overwrite mode");
+
+  const forceOutput = runInDir("cursor init --force", tempRoot, env);
+  const forceResult = JSON.parse(forceOutput.split(/\r?\n\r?\n/)[0]);
+  assert.strictEqual(forceResult.overwrite, false, "cursor init --force should keep legacy no-overwrite behavior");
+
+  const conflictErr = expectThrow(
+    () => runInDir("cursor init --overwrite --force", tempRoot, env),
+    "cursor init should reject conflicting overwrite/force flags"
+  );
+  assert.ok(conflictErr.status > 0, "cursor init conflict flags should exit non-zero");
+
+  const retiredSkillDir = path.join(tempRoot, ".cursor", "skills", "ui-baseline-governance");
+  fs.mkdirSync(retiredSkillDir, { recursive: true });
+  fs.writeFileSync(path.join(retiredSkillDir, "SKILL.md"), "legacy skill", "utf8");
+
+  runInDir("cursor init", tempRoot, env);
+  assert.ok(
+    !fs.existsSync(path.join(retiredSkillDir, "SKILL.md")),
+    "cursor init should remove retired managed files from manifest"
+  );
 }
 
 console.log("smoke: ok");
