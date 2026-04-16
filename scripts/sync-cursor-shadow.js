@@ -11,8 +11,12 @@ const pairs = [
   ["rules/00-output-token-budget.mdc", ".cursor/rules/00-output-token-budget.mdc"],
   ["rules/01-figma-cache-core.mdc", ".cursor/rules/01-figma-cache-core.mdc"],
   ["rules/02-figma-stack-adapter.mdc", ".cursor/rules/02-figma-stack-adapter.mdc"],
+  ["rules/03-figma-ui-implementation-hard-constraints.mdc", ".cursor/rules/03-figma-ui-implementation-hard-constraints.mdc"],
+  ["rules/04-ui-baseline-governance.mdc", ".cursor/rules/04-ui-baseline-governance.mdc"],
   ["rules/figma-local-cache-first.mdc", ".cursor/rules/figma-local-cache-first.mdc"],
   ["skills/figma-mcp-local-cache/SKILL.md", ".cursor/skills/figma-mcp-local-cache/SKILL.md"],
+  ["skills/ui-baseline-governance/SKILL.md", ".cursor/skills/ui-baseline-governance/SKILL.md"],
+  ["skills/figma-ui-dual-mode-execution/SKILL.md", ".cursor/skills/figma-ui-dual-mode-execution/SKILL.md"],
 ];
 
 function copyPair(relFrom, relTo) {

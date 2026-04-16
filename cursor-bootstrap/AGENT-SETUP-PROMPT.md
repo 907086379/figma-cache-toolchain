@@ -3,9 +3,12 @@
 > **给 Cursor Agent 的指令**：你正在操作的是**用户业务项目**的根目录。以下文件应已存在（由 `npx figma-cache cursor init` 从 npm 包 **`{{NPM_PACKAGE_NAME}}`** 复制到当前仓库根）：
 > - `.cursor/rules/01-figma-cache-core.mdc`
 > - `.cursor/rules/00-output-token-budget.mdc`（通用低 token 输出基线）
+> - `.cursor/rules/04-ui-baseline-governance.mdc`（UI 全局基线治理：新项目/老项目双轨 + 生成约束）
 > - `.cursor/rules/02-figma-stack-adapter.mdc`（**占位**，任务完成后需删除）
 > - `.cursor/rules/figma-local-cache-first.mdc`（可选保留）
 > - `.cursor/skills/figma-mcp-local-cache/SKILL.md`
+> - `.cursor/skills/ui-baseline-governance/SKILL.md`（执行清单：基线判定与落地步骤）
+> - `.cursor/skills/figma-ui-dual-mode-execution/SKILL.md`（仅给 nodeId/链接即可触发端到端 UI 实现）
 > - `figma-cache.config.js`（示例 `postEnsure`：目录级 adapter hint + 可选 `docs/figma-flow-readme.md`）
 > - （兼容旧项目）`figma-cache.config.example.js` 可能存在；仅当内容被用户自定义且无法安全迁移时保留
 
@@ -35,8 +38,15 @@
    - 用简短列表向用户汇报：新建/修改/删除了哪些路径。  
    - 若项目根**尚无** `figma-cache/index.json`，提示用户执行：`npm run figma:cache:init`（若已加 script）或 `npx figma-cache init`（与 `cursor init` 不同，用于创建空索引与缓存目录）。  
    - 提示用户在本项目根执行：`npm run figma:cache:validate`（若已加 script）或 `npx figma-cache validate`。  
-   - 说明：后续 Figma 相关对话将主要由 **01 Core + 新 Adapter + Skill** 驱动。  
+   - 说明：后续 Figma 相关对话将主要由 **01 Core + 新 Adapter + figma-mcp-local-cache Skill** 驱动；涉及全局样式与组件生成稳定性时叠加 **04-ui-baseline-governance + ui-baseline-governance Skill**。  
       - **可选**：若项目已通过 `cursor init` 同步 `figma-cache/docs/colleague-guide-zh.md`，提示团队默认只使用 **§5.1「最推荐主提示词」**，只有特殊诉求再追加 **§5.2** 的一句附加要求。
+
+8. **UI 全局基线治理（强烈推荐，与 UI 实现任务绑定）**  
+   - 确认 `.cursor/rules/04-ui-baseline-governance.mdc` 与 `.cursor/skills/ui-baseline-governance/SKILL.md` 已存在于项目根（随 `cursor init` 同步）；若缺失，从 npm 包内 **`cursor-bootstrap/rules/`** 与 **`cursor-bootstrap/skills/`** 补拷到当前仓库 `.cursor/`，并提示团队升级 **`{{NPM_PACKAGE_NAME}}`** 版本以便后续 init 自带。  
+   - 读取 **`04-ui-baseline-governance.mdc` §1.0**：按机械启发式判定「新项目 / 老项目」，在汇报中写明**结论 + 命中证据**（文件路径、计数、依赖名）。  
+   - 按判定结果执行：新项目可规划一次性全局基线；老项目仅允许分层/分批/可回滚方案，禁止首轮全量全局 reset 叠加大规模业务重构。  
+   - 在 Cursor 中建议团队对「写业务 UI / 调全局样式」类任务 **@** 引用：`04-ui-baseline-governance.mdc` 或 `ui-baseline-governance` Skill，以统一生成行为（`border-box` 假设、flex 溢出、弹层锚定、图标策略等）。
+   - 降噪策略：默认使用短流程；仅在老项目、高风险任务或冲突场景升级严格流程。`ui-1to1-preflight.template.md` 仅在严格流程下强制填写，短流程可只输出精简事实清单。
 
 ## 输出与 token 约束（强制）
 - 默认“只要结果”：不输出思考过程，不粘贴 MCP 长回包。

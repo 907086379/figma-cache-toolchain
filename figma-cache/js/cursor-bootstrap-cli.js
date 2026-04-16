@@ -33,12 +33,28 @@ function copyCursorBootstrap(force, deps) {
       to: path.join(".cursor", "rules", "02-figma-stack-adapter.mdc"),
     },
     {
+      from: path.join("rules", "03-figma-ui-implementation-hard-constraints.mdc"),
+      to: path.join(".cursor", "rules", "03-figma-ui-implementation-hard-constraints.mdc"),
+    },
+    {
+      from: path.join("rules", "04-ui-baseline-governance.mdc"),
+      to: path.join(".cursor", "rules", "04-ui-baseline-governance.mdc"),
+    },
+    {
       from: path.join("rules", "figma-local-cache-first.mdc"),
       to: path.join(".cursor", "rules", "figma-local-cache-first.mdc"),
     },
     {
       from: path.join("skills", "figma-mcp-local-cache", "SKILL.md"),
       to: path.join(".cursor", "skills", "figma-mcp-local-cache", "SKILL.md"),
+    },
+    {
+      from: path.join("skills", "ui-baseline-governance", "SKILL.md"),
+      to: path.join(".cursor", "skills", "ui-baseline-governance", "SKILL.md"),
+    },
+    {
+      from: path.join("skills", "figma-ui-dual-mode-execution", "SKILL.md"),
+      to: path.join(".cursor", "skills", "figma-ui-dual-mode-execution", "SKILL.md"),
     },
   ];
 
