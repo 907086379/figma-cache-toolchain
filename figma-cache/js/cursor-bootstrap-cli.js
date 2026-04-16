@@ -7,7 +7,46 @@ function readUtf8IfExists(fs, absPath) {
   return fs.readFileSync(absPath, "utf8");
 }
 
-function copyCursorBootstrap(force, deps) {
+function loadManagedManifest({ fs, path, CURSOR_BOOTSTRAP_DIR, normalizeSlash }) {
+  const manifestPath = path.join(CURSOR_BOOTSTRAP_DIR, "managed-files.json");
+  if (!fs.existsSync(manifestPath)) {
+    console.error(`[figma-cache] missing managed files manifest: ${normalizeSlash(manifestPath)}`);
+    process.exit(1);
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    console.error(`[figma-cache] invalid managed files manifest: ${error.message}`);
+    process.exit(1);
+  }
+
+  const { managedFiles, retiredFiles } = parsed || {};
+  if (!Array.isArray(managedFiles) || managedFiles.length === 0) {
+    console.error("[figma-cache] managed-files.json must contain non-empty managedFiles");
+    process.exit(1);
+  }
+
+  const pairs = managedFiles.map((item, index) => {
+    if (!item || typeof item.from !== "string" || typeof item.to !== "string") {
+      console.error(`[figma-cache] invalid managedFiles[${index}] item`);
+      process.exit(1);
+    }
+    return {
+      from: item.from,
+      to: item.to,
+    };
+  });
+
+  const retired = Array.isArray(retiredFiles)
+    ? retiredFiles.filter((item) => typeof item === "string" && item.trim())
+    : [];
+
+  return { pairs, retired };
+}
+
+function copyCursorBootstrap(options, deps) {
   const {
     fs,
     path,
@@ -18,45 +57,12 @@ function copyCursorBootstrap(force, deps) {
     readSelfNpmPackageName,
     packageDir,
   } = deps;
+  const {
+    overwrite = false,
+    legacyForce = false,
+  } = options || {};
 
-  const pairs = [
-    {
-      from: path.join("rules", "00-output-token-budget.mdc"),
-      to: path.join(".cursor", "rules", "00-output-token-budget.mdc"),
-    },
-    {
-      from: path.join("rules", "01-figma-cache-core.mdc"),
-      to: path.join(".cursor", "rules", "01-figma-cache-core.mdc"),
-    },
-    {
-      from: path.join("rules", "02-figma-stack-adapter.mdc"),
-      to: path.join(".cursor", "rules", "02-figma-stack-adapter.mdc"),
-    },
-    {
-      from: path.join("rules", "03-figma-ui-implementation-hard-constraints.mdc"),
-      to: path.join(".cursor", "rules", "03-figma-ui-implementation-hard-constraints.mdc"),
-    },
-    {
-      from: path.join("rules", "04-ui-baseline-governance.mdc"),
-      to: path.join(".cursor", "rules", "04-ui-baseline-governance.mdc"),
-    },
-    {
-      from: path.join("rules", "figma-local-cache-first.mdc"),
-      to: path.join(".cursor", "rules", "figma-local-cache-first.mdc"),
-    },
-    {
-      from: path.join("skills", "figma-mcp-local-cache", "SKILL.md"),
-      to: path.join(".cursor", "skills", "figma-mcp-local-cache", "SKILL.md"),
-    },
-    {
-      from: path.join("skills", "ui-baseline-governance", "SKILL.md"),
-      to: path.join(".cursor", "skills", "ui-baseline-governance", "SKILL.md"),
-    },
-    {
-      from: path.join("skills", "figma-ui-dual-mode-execution", "SKILL.md"),
-      to: path.join(".cursor", "skills", "figma-ui-dual-mode-execution", "SKILL.md"),
-    },
-  ];
+  const { pairs, retired } = loadManagedManifest({ fs, path, CURSOR_BOOTSTRAP_DIR, normalizeSlash });
 
   if (!fs.existsSync(CURSOR_BOOTSTRAP_DIR)) {
     console.error(
@@ -65,7 +71,6 @@ function copyCursorBootstrap(force, deps) {
     process.exit(1);
   }
 
-  const overwrite = !force;
   let copied = 0;
   let skipped = 0;
   pairs.forEach(({ from: relFrom, to: relTo }) => {
@@ -84,6 +89,17 @@ function copyCursorBootstrap(force, deps) {
     copied += 1;
   });
 
+  const retiredDeleted = retired
+    .map((relPath) => {
+      const abs = path.join(ROOT, relPath);
+      if (!fs.existsSync(abs)) {
+        return null;
+      }
+      fs.unlinkSync(abs);
+      return normalizeSlash(relPath);
+    })
+    .filter(Boolean);
+
   const configTemplatePath = path.join(CURSOR_BOOTSTRAP_DIR, "figma-cache.config.example.js");
   const projectConfigPath = path.join(ROOT, "figma-cache.config.js");
   const legacyExamplePath = path.join(ROOT, "figma-cache.config.example.js");
@@ -99,10 +115,10 @@ function copyCursorBootstrap(force, deps) {
 
   let configAction = "skipped";
   let configSource = "existing";
-  if (hadProjectConfig && !force) {
+  if (hadProjectConfig && !overwrite) {
     configAction = "skipped";
     configSource = "existing";
-  } else if (!hadProjectConfig && hadLegacyExample && !force) {
+  } else if (!hadProjectConfig && hadLegacyExample && !overwrite) {
     fs.copyFileSync(legacyExamplePath, projectConfigPath);
     configAction = "created";
     configSource = "legacy-example";
@@ -157,10 +173,11 @@ function copyCursorBootstrap(force, deps) {
         root: normalizeSlash(ROOT),
         copied,
         skipped,
-        force: !!force,
-        overwriteByDefault: overwrite,
+        overwrite,
+        legacyForce,
+        retiredDeleted,
         hint: skipped
-          ? "Some template files were skipped (--force means keep existing files)."
+          ? "Some template files were skipped (default safe mode keeps existing files)."
           : overwrite
           ? "Done. Existing .cursor templates were overwritten by latest bootstrap."
           : "Done.",
@@ -199,4 +216,3 @@ function copyCursorBootstrap(force, deps) {
 module.exports = {
   copyCursorBootstrap,
 };
-

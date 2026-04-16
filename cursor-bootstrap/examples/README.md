@@ -1,11 +1,15 @@
-﻿# 栈相关参考（不随 `cursor init` 复制）
+# 栈相关参考（不随 `cursor init` 复制）
 
-本目录存放 **可选** 的完整 Adapter 示例，供人工或 Agent 对照；**通用默认**请使用 `cursor init` 生成的 `02-figma-stack-adapter.mdc` 与根目录 `figma-cache.config.js`。
+本目录存放可选参考与模板文件：
 
 | 文件 | 说明 |
-|------|------|
-| `vue2-vuetify2-adapter.reference.mdc` | 历史 Vue 2 + Vuetify 2 表现层规则全文，可复制为 `.cursor/rules/02-figma-vuetify2-adapter.mdc` 并按项目改名 |
+|---|---|
+| `vue2-vuetify2-adapter.reference.mdc` | 历史 Vue2 + Vuetify2 参考规则 |
+| `generated-ui-reset.css.template` | 老项目 B0 局部 reset 模板（推荐默认） |
 
-将参考规则复制进 `.cursor/rules/` 后，建议同步 `figma-cache.config.js` 的 adapter 提示策略：默认使用 `FIGMA_CACHE_ADAPTER_DOC_MODE=cache-root`（目录级单文件），仅在明确需要节点文档时改为 `node`。
+## B0 推荐用法（目标业务项目）
+1. 复制模板到项目：`src/styles/generated-ui-reset.css`
+2. 在入口（如 `src/main.ts`）引入一次
+3. 生成组件根节点加 `generate-ui-reset`
 
-
+说明：B0 仅做局部基线，不污染全局；B1/B2 见 `04-ui-baseline-governance.mdc`。

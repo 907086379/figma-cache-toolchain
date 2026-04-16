@@ -6,9 +6,15 @@
 
 - 暂无
 
+## 2.0.3（2026-04-16）
+
+- `cursor init` 参数与兼容语义收敛：默认安全模式保留本地模板，`--overwrite` 显式覆盖，`--force` 保持旧语义兼容。
+- shadow 托管机制升级：引入 `managed-files.json` 真源清单，并支持 retired 文件自动清理与残留检测。
+- 规则与技能治理收敛：合并 UI 03 规则口径、精简 skill 结构，并将本地规则统一为 `local-*` 命名。
+
 ## 2.0.0（2026-04-15）
 
-- **`cursor init` 模板策略变更（Breaking）**：默认改为覆盖同名 `.cursor/rules` 与 `.cursor/skills` 为最新模板；`--force` 改为“保留本地已存在模板并跳过覆盖”。
+- **`cursor init` 模板策略变更（Breaking）**：默认改为保留同名 `.cursor/rules` 与 `.cursor/skills`（安全模式）；可用 `--overwrite` 覆盖为最新模板（`--force` 保持兼容旧语义（保留不覆盖））。
 - **通用低 token 规则下发**：新增 `00-output-token-budget.mdc`，并在 `cursor init` 时自动复制到项目 `.cursor/rules/`，实现“结果优先、最小回显”的默认行为。
 - **Figma 缓存规则强化**：新增“`mcp-raw` 落盘后即时反精简检查”与结果输出要求（`mcp-raw anti-truncation: pass|fail`），降低摘要化回包误入缓存风险。
 - **读取策略定稿**：UI/组件实现任务默认读取 `mcp-raw-get-design-context.txt` 全文；仅逻辑/流程等 UI 无关任务走 `raw/spec/manifest` 轻量读取。
@@ -84,7 +90,7 @@
 
 ## 1.1.0
 
-- **CLI**：`figma-cache cursor init [--force]` — 将包内 `cursor-bootstrap/` 复制到当前项目根的 `.cursor/rules` 与 `.cursor/skills/figma-mcp-local-cache/`；默认跳过已存在文件，`--force` 覆盖。
+- **CLI**：`figma-cache cursor init [--overwrite]` — 将包内 `cursor-bootstrap/` 复制到当前项目根；默认跳过已存在文件（安全模式），`--overwrite` 覆盖。
 - **分发**：`package.json` 的 `files` 包含 `cursor-bootstrap/`。
 
 ## 1.0.0

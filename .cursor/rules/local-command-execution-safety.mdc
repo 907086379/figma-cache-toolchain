@@ -1,0 +1,28 @@
+---
+description: 本地命令执行安全规则（PowerShell 语法与 UTF-8 BOM 防错）
+alwaysApply: true
+---
+
+# Local Command Execution Safety（本地）
+
+适用范围：本项目本地规则，补充托管规则，专门防止 PowerShell 语法差异与 BOM 编码引发脚本失败。
+
+## 1) PowerShell 命令连接符（强制）
+- 在 PowerShell 环境，禁止使用 `&&` 连接命令。
+- 顺序执行请使用 `;`，并在必要时单独检查前一条命令退出码。
+
+## 2) 脚本与 JSON 写入编码（强制）
+- 写入 `.js/.json/.mdc` 文件时，默认使用 UTF-8 无 BOM。
+- 禁止使用会默认产出 BOM 的写法（如部分 `Set-Content -Encoding utf8` 场景）。
+- 推荐长期安全写法：
+  - `.NET`：`[System.IO.File]::WriteAllText(path, content, (New-Object System.Text.UTF8Encoding($false)))`
+
+## 3) 命中故障后的处理（强制）
+- 若因以上问题导致执行失败，必须：
+  1. 使用安全替代写法修复并复跑命令；
+  2. 在本地改造清单中追加“故障 -> 修复 -> 验证结果”；
+  3. 在最终回复中明确长期安全写法。
+
+## 4) 最小验证（强制）
+- 对脚本改动至少执行一次直接命令验证（如 `node <script>` 或 npm script）。
+- 对 JSON 改动至少执行一次解析相关命令验证。

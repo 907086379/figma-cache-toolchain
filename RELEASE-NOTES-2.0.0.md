@@ -14,7 +14,7 @@ Release date: 2026-04-15
 
 - `figma-cache cursor init` behavior changed:
   - Default: overwrite existing bootstrap templates in `.cursor/rules/` and `.cursor/skills/`.
-  - `--force`: keep existing local templates and skip overwrite.
+  - `--overwrite`: replace existing local templates with the latest bootstrap.
 
 ## Included Improvements
 
@@ -38,7 +38,7 @@ Release date: 2026-04-15
 ## Upgrade Notes
 
 - If your project intentionally customizes `.cursor` rules/skills, run:
-  - `npx figma-cache cursor init --force`
+  - `npx figma-cache cursor init --overwrite`
   to preserve local templates.
 - For teams that want latest default behavior, run:
   - `npx figma-cache cursor init`

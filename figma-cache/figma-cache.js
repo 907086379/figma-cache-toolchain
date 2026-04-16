@@ -353,7 +353,7 @@ function run() {
     console.log(`  ${ex} flow show --flow=<flowId>`);
     console.log(`  ${ex} flow mermaid --flow=<flowId>`);
     console.log(
-      `${ex} cursor init [--force]  # default: overwrite .cursor templates with latest bootstrap; --force keeps existing templates (skip overwrite)`,
+      `${ex} cursor init [--overwrite] [--force]  # default safe mode; --overwrite forces replacement; --force keeps legacy behavior (no overwrite)`,
     );
     process.exit(1);
   }
@@ -362,12 +362,18 @@ function run() {
     const sub = args[0];
     if (sub !== "init") {
       console.error(
-        "Usage: figma-cache cursor init [--force]  # default overwrite; --force keeps existing templates",
+        "Usage: figma-cache cursor init [--overwrite] [--force]  # --overwrite replaces existing templates; --force keeps legacy no-overwrite behavior",
       );
       process.exit(1);
     }
-    const force = args.includes("--force");
-    copyCursorBootstrap(force, {
+    const hasOverwrite = args.includes("--overwrite");
+    const hasForce = args.includes("--force");
+    if (hasOverwrite && hasForce) {
+      console.error("Do not use --overwrite and --force together. Choose one mode.");
+      process.exit(1);
+    }
+    const overwrite = hasOverwrite;
+    copyCursorBootstrap({ overwrite, legacyForce: hasForce }, {
       fs,
       path,
       ROOT,

@@ -134,7 +134,7 @@ npm run figma:cache:init
 - **项目根**仍需：`figma-cache.config.js`、`.cursor/` 规则与 Skill、`AGENT-SETUP-PROMPT.md`（或由等价流程生成）。
 - Vue2+Vuetify2 参考 Adapter：`cursor-bootstrap/examples/vue2-vuetify2-adapter.reference.mdc`（npm 安装时在 `node_modules/.../cursor-bootstrap/examples/`）。
 
-说明：Cursor **不会**在 `npm install` 时写入 `.cursor/`；`npx figma-cache cursor init` 负责从包内复制模板。`cursor init` 默认**覆盖**同名模板为最新版本（`--force` 可改为保留已有模板并跳过覆盖）；并会下发通用低 token 规则 `00-output-token-budget.mdc`；**`AGENT-SETUP-PROMPT.md` 每次 `cursor init` 均刷新**。
+说明：Cursor **不会**在 `npm install` 时写入 `.cursor/`；`npx figma-cache cursor init` 负责从包内复制模板。`cursor init` 默认**保留**同名模板（安全模式）；使用 `--overwrite` 可覆盖为最新版本；并会下发通用低 token 规则 `00-output-token-budget.mdc`；**`AGENT-SETUP-PROMPT.md` 每次 `cursor init` 均刷新**。
 
 ## package.json scripts 示例
 
