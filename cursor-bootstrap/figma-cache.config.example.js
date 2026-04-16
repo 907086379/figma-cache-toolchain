@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 项目级 Figma 缓存扩展（示例模板，**不绑定任何 UI 框架**）。
  *
  * 安装本 npm 包并执行 `npx figma-cache cursor init` 后，项目根会出现 **AGENT-SETUP-PROMPT.md**：
@@ -6,7 +6,7 @@
  *
  * 若你已有 `figma-cache.config.js`，可由 Agent 合并而非覆盖。
  *
- * 加载顺序见 `figma-cache/figma-cache.js`：FIGMA_CACHE_PROJECT_CONFIG → figma-cache.config.js → .figmacacherc.js
+ * 加载顺序见 `figma-cache/figma-cache.js`：FIGMA_CACHE_PROJECT_CONFIG -> figma-cache.config.js -> .figmacacherc.js
  */
 
 const fs = require("fs");
@@ -44,6 +44,21 @@ const ADAPTER_DOC_CACHE_REL =
  */
 const ADAPTER_DOC_WRITE_POLICY =
   process.env.FIGMA_CACHE_ADAPTER_DOC_WRITE_POLICY || "if-missing";
+
+/**
+ * 全局 UI adapter contract 目标路径（相对项目根）。
+ * 该 contract 作为「设计 token/state -> 项目实现」的单一真源。
+ */
+const ADAPTER_CONTRACT_REL =
+  process.env.FIGMA_CACHE_ADAPTER_CONTRACT ||
+  "figma-cache/adapters/ui-adapter.contract.json";
+
+/**
+ * contract 模板来源（相对项目根，通常来自 cursor-bootstrap）。
+ */
+const ADAPTER_CONTRACT_TEMPLATE_REL =
+  process.env.FIGMA_CACHE_ADAPTER_CONTRACT_TEMPLATE ||
+  "cursor-bootstrap/examples/ui-adapter.contract.template.json";
 
 /**
  * 人类可读的「流程 / 需求总览」骨架路径（相对项目根）。仅本示例写入；可在业务项目中改路径或删除相关逻辑。
@@ -99,13 +114,14 @@ function writeTextByPolicy(absPath, content) {
  * @returns {string}
  */
 function buildCacheRootHint(ctx) {
-  return `# Figma 缓存 → UI 实现（目录级提示）
+  return `# Figma 缓存 -> UI 实现（目录级提示）
 
 本文件由示例 \`postEnsure\` 生成，默认放在 **figma-cache 目录级**，用于避免“每个节点重复生成同一提示”。
 
 - **默认来源优先级**：先用 \`raw.json\` / \`spec.md\` / \`meta.json\` / \`state-map.md\`，仅在缺口或冲突时再读 \`mcp-raw/*\`
 - **证据约束**：同一设计事实只保留一个主证据来源，避免重复引用
 - **命中检查**：先查本地缓存命中与字段覆盖，再决定是否需要 MCP 补齐
+- **全局映射契约**：先读取 \`${ADAPTER_CONTRACT_REL}\`，将 token/state 映射到项目实现；未映射项禁止猜测
 
 可选模式（环境变量）：
 - \`FIGMA_CACHE_ADAPTER_DOC_MODE=cache-root\`（默认）
@@ -122,7 +138,7 @@ function buildCacheRootHint(ctx) {
  */
 function buildNodeHint(ctx) {
   const nodeLabel = ctx.nodeId == null ? "" : String(ctx.nodeId);
-  return `# Figma 缓存 → UI 实现（节点提示）
+  return `# Figma 缓存 -> UI 实现（节点提示）
 
 本文件由示例 \`postEnsure\` 生成。若你希望减少重复，可改用目录级模式：\`FIGMA_CACHE_ADAPTER_DOC_MODE=cache-root\`。
 
@@ -130,6 +146,7 @@ function buildNodeHint(ctx) {
 - cacheKey: \`${ctx.cacheKey}\`
 - fileKey: \`${ctx.fileKey}\`
 - nodeId: \`${nodeLabel}\`
+- 全局映射契约：\`${ADAPTER_CONTRACT_REL}\`
 
 **流程 / 交互总览（可选）**：若使用本示例默认钩子，项目根下另有 **\`${FLOW_README_REL}\`**，随每次 \`ensure\` 追加节点小节，便于与 \`index.json\` 里的 \`flows\` 互补（人读 md，机读索引）。
 `;
@@ -156,6 +173,26 @@ function writeAdapterHint(ctx) {
 }
 
 /**
+ * 保证项目存在全局 adapter contract（单一真源）。
+ * 默认仅在缺失时写入，避免覆盖项目已定制内容。
+ * @param {object} ctx
+ */
+function ensureAdapterContract(ctx) {
+  const targetAbs = path.resolve(ctx.root, ADAPTER_CONTRACT_REL);
+  if (fs.existsSync(targetAbs)) {
+    return;
+  }
+
+  const templateAbs = path.resolve(ctx.root, ADAPTER_CONTRACT_TEMPLATE_REL);
+  if (!fs.existsSync(templateAbs)) {
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(targetAbs), { recursive: true });
+  fs.copyFileSync(templateAbs, targetAbs);
+}
+
+/**
  * 在单文件里维护「已缓存节点」登记（按 cacheKey 幂等追加），与 index.json / flows 互补：适合评审与新人阅读。
  * @param {object} ctx
  */
@@ -164,13 +201,13 @@ function appendFlowReadmeRegistry(ctx) {
   const marker = `<!-- cache-node:${ctx.cacheKey} -->`;
   const specRel = normalizePosixPath(path.relative(ctx.root, path.resolve(ctx.root, ctx.paths.spec)));
   const metaRel = normalizePosixPath(path.relative(ctx.root, path.resolve(ctx.root, ctx.paths.meta)));
-  const completeness = Array.isArray(ctx.completeness) && ctx.completeness.length ? ctx.completeness.join(", ") : "—";
+  const completeness = Array.isArray(ctx.completeness) && ctx.completeness.length ? ctx.completeness.join(", ") : "-";
   const block =
     `\n${marker}\n` +
     `### \`${ctx.cacheKey}\`\n\n` +
-    `- **Figma**: ${ctx.url || "—"}\n` +
-    `- **syncedAt**: ${ctx.syncedAt || "—"}\n` +
-    `- **source**: ${ctx.source || "—"}\n` +
+    `- **Figma**: ${ctx.url || "-"}\n` +
+    `- **syncedAt**: ${ctx.syncedAt || "-"}\n` +
+    `- **source**: ${ctx.source || "-"}\n` +
     `- **completeness**: ${completeness}\n` +
     `- **spec**: \`${specRel}\` · **meta**: \`${metaRel}\`\n` +
     `- **提示**: 像素级还原以 \`spec.md\` / \`raw.json\` 为准；用户路径请维护 \`flows\` 后把 \`npm run figma:cache:flow mermaid\` 输出贴到下方「流程总览」。\n`;
@@ -219,16 +256,21 @@ module.exports = {
   ADAPTER_DOC_MODE,
   ADAPTER_DOC_CACHE_REL,
   ADAPTER_DOC_WRITE_POLICY,
+  ADAPTER_CONTRACT_REL,
+  ADAPTER_CONTRACT_TEMPLATE_REL,
   FLOW_README_REL,
   appendFlowReadmeRegistry,
+  ensureAdapterContract,
 
   hooks: {
     /**
-     * 默认实现：目录级 adapter 提示（避免节点重复）+ 项目根下「流程/需求」总览骨架（单文件、幂等追加节点块）。
+     * 默认实现：目录级 adapter 提示（避免节点重复）+ 全局 adapter contract（缺失时自动落地）
+     * + 项目根下「流程/需求」总览骨架（单文件、幂等追加节点块）。
      * 用 Agent 生成业务方案后，可整体替换本模块逻辑。
      */
     postEnsure(ctx) {
       try {
+        ensureAdapterContract(ctx);
         writeAdapterHint(ctx);
         appendFlowReadmeRegistry(ctx);
       } catch (err) {

@@ -13,6 +13,7 @@ const { createEntryFilesService } = require("./js/entry-files");
 const { backfillFromIterations } = require("./js/backfill-cli");
 const { createUpsertService } = require("./js/upsert-core");
 const { createProjectConfigService } = require("./js/project-config");
+const { buildContractCheckReport } = require("./js/contract-check-cli");
 
 const ROOT = process.cwd();
 const NORMALIZATION_VERSION = 1;
@@ -83,11 +84,11 @@ const DEFAULT_STALE_DAYS = parsePositiveInt(
 );
 
 const CACHE_DIR = resolveMaybeAbsolutePath(CACHE_DIR_INPUT);
-/** 涓?`figma-cache/figma-cache.js` 鍚岀骇鐨?`cursor-bootstrap/`锛堥殢 npm 鍖呭垎鍙戯級 */
+/** 与 `figma-cache/figma-cache.js` 同级的 `cursor-bootstrap/`（随 npm 包分发） */
 const CURSOR_BOOTSTRAP_DIR = path.join(__dirname, "..", "cursor-bootstrap");
 const ITERATIONS_DIR = resolveMaybeAbsolutePath(ITERATIONS_DIR_INPUT);
 
-/** 褰撳墠瀹夎鍖呭湪 package.json 涓殑 name锛堢敤浜庡啓鍏?AGENT-SETUP-PROMPT.md锛?*/
+/** 当前安装包在 package.json 里的 name（用于写入 AGENT-SETUP-PROMPT.md） */
 function readSelfNpmPackageName() {
   try {
     const pkgPath = path.join(__dirname, "..", "package.json");
@@ -240,6 +241,14 @@ function safeReadJson(absPath) {
   }
 }
 
+function safeReadText(absPath) {
+  try {
+    return fs.readFileSync(absPath, "utf8");
+  } catch {
+    return "";
+  }
+}
+
 function safeFileSize(absPath) {
   try {
     return fs.statSync(absPath).size;
@@ -312,6 +321,65 @@ function runUpsertLikeCommand(commandName, args, shouldEnsureFiles) {
     ),
   );
 }
+
+function parseContractCheckArgs(args) {
+  return {
+    cacheKey: (() => {
+      const item = args.find((x) => x.startsWith("--cacheKey="));
+      return item ? item.split("=").slice(1).join("=").trim() : "";
+    })(),
+    warnUnmappedTokens: args.includes("--warn-unmapped-tokens"),
+    warnUnmappedStates: args.includes("--warn-unmapped-states"),
+  };
+}
+
+function runContractCheck(args) {
+  const options = parseContractCheckArgs(args);
+  const contractPath = resolveMaybeAbsolutePath(
+    process.env.FIGMA_CACHE_ADAPTER_CONTRACT ||
+      "figma-cache/adapters/ui-adapter.contract.json",
+  );
+
+  const report = buildContractCheckReport(
+    {
+      ...options,
+      contractPath,
+    },
+    {
+      index: readIndex(),
+      contract: safeReadJson(contractPath),
+      readJsonOrNull: safeReadJson,
+      readTextOrEmpty: safeReadText,
+      resolveMaybeAbsolutePath,
+      normalizeSlash,
+    },
+  );
+
+  if (!report.ok) {
+    console.error("contract-check failed:");
+    report.hardErrors.forEach((error) => console.error(`- ${error}`));
+    if (report.warnings.length) {
+      console.error("\nWarnings:");
+      report.warnings.forEach((warning) => console.error(`- ${warning}`));
+    }
+    process.exit(2);
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        contract: normalizeSlash(contractPath),
+        checkedItems: report.checkedItems,
+        checkedCacheKeys: report.checkedCacheKeys,
+        warnings: report.warnings,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 function run() {
   const [, , cmd, ...args] = process.argv;
   if (!cmd) {
@@ -338,7 +406,10 @@ function run() {
     console.log(`  ${ex} init`);
     console.log(`  ${ex} config`);
     console.log(
-      "  (optional) figma-cache.config.js | .figmacacherc.js | FIGMA_CACHE_PROJECT_CONFIG 鈥?hooks.postEnsure after ensure",
+      `  ${ex} contract-check [--cacheKey=<fileKey#nodeId>] [--warn-unmapped-tokens] [--warn-unmapped-states]`,
+    );
+    console.log(
+      "  (optional) figma-cache.config.js | .figmacacherc.js | FIGMA_CACHE_PROJECT_CONFIG -> hooks.postEnsure after ensure",
     );
     console.log(`  ${ex} flow init --id=<flowId> [--title=...]`);
     console.log(
@@ -421,6 +492,7 @@ function run() {
     runUpsertLikeCommand("ensure", args, true);
     return;
   }
+
   if (cmd === "validate") {
     const index = readIndex();
     const errors = validateIndex(index, {
@@ -440,6 +512,11 @@ function run() {
     console.error("Validation failed:");
     errors.forEach((err) => console.error(`- ${err}`));
     process.exit(2);
+  }
+
+  if (cmd === "contract-check") {
+    runContractCheck(args);
+    return;
   }
 
   if (cmd === "stale") {

@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "scope": "project-global",
+  "description": "Figma UI adapter contract (project-level single source of truth).",
+  "usage": [
+    "Agent实现UI前必须先读取此文件，用于将Figma token/state映射到项目实现。",
+    "优先使用projectBinding，未映射项必须先补充contract或向用户确认，禁止猜测。",
+    "默认只维护这一份全局contract；仅在节点特殊化时才新增节点override。"
+  ],
+  "tokenMappings": [
+    {
+      "id": "color.interactive.selected.controlBg",
+      "figmaToken": "Textr Team Blue/Textr Team Blue 500",
+      "figmaValue": "#305AFE",
+      "required": true,
+      "projectBinding": {
+        "type": "literal",
+        "value": "#305AFE",
+        "notes": "可替换为项目真实token（如CSS变量或主题变量），但视觉值必须等效。"
+      }
+    },
+    {
+      "id": "color.text.inverse",
+      "figmaToken": "Defaults/White",
+      "figmaValue": "#FFFFFF",
+      "required": true,
+      "projectBinding": {
+        "type": "literal",
+        "value": "#FFFFFF",
+        "notes": "用于深色控件上的前景文案/图标。"
+      }
+    },
+    {
+      "id": "color.surface.panel",
+      "figmaToken": "Neutral Grey/Neutral Grey 800",
+      "figmaValue": "#383C48",
+      "required": false,
+      "projectBinding": {
+        "type": "literal",
+        "value": "#383C48",
+        "notes": "面板背景常用色。"
+      }
+    }
+  ],
+  "stateMappings": {
+    "select": {
+      "requiredStates": [
+        "default",
+        "expanded",
+        "selected",
+        "unselected"
+      ],
+      "hoverScope": "option-only",
+      "selectedCheckbox": {
+        "backgroundTokenId": "color.interactive.selected.controlBg",
+        "iconTokenId": "color.text.inverse"
+      }
+    }
+  },
+  "rules": {
+    "singleSourceOfTruth": true,
+    "fallbackPolicy": "ask-user-when-unmapped",
+    "nodeOverride": {
+      "enabled": true,
+      "pathPattern": "figma-cache/files/<fileKey>/nodes/<nodeId>/ui-override.json",
+      "policy": "仅用于节点级差异，且不得反向污染全局contract。"
+    }
+  }
+}

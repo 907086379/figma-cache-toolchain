@@ -89,6 +89,25 @@ function copyCursorBootstrap(options, deps) {
     copied += 1;
   });
 
+  const requiredExampleTemplates = [
+    "examples/ui-adapter.contract.template.json",
+    "examples/ui-1to1-preflight.template.md",
+  ];
+  requiredExampleTemplates.forEach((relPath) => {
+    const absFrom = path.join(CURSOR_BOOTSTRAP_DIR, relPath);
+    const absTo = path.join(ROOT, "cursor-bootstrap", relPath);
+    if (!fs.existsSync(absFrom)) {
+      console.error(`[figma-cache] missing template file: ${normalizeSlash(absFrom)}`);
+      process.exit(1);
+    }
+    fs.mkdirSync(path.dirname(absTo), { recursive: true });
+    if (fs.existsSync(absTo) && !overwrite) {
+      skipped += 1;
+      return;
+    }
+    fs.copyFileSync(absFrom, absTo);
+    copied += 1;
+  });
   const retiredDeleted = retired
     .map((relPath) => {
       const abs = path.join(ROOT, relPath);

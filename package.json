@@ -1,75 +1,79 @@
 {
-  "name": "figma-cache-toolchain",
-  "version": "2.0.3",
-  "description": "Figma link normalization, local cache index, validation, and Node CLI (framework-agnostic core).",
-  "homepage": "https://github.com/907086379/figma-cache-toolchain#readme",
-  "keywords": [
-    "figma",
-    "cache",
-    "cli",
-    "design-tokens",
-    "mcp"
-  ],
-  "license": "MIT",
-  "engines": {
-    "node": ">=16.20.0"
-  },
-  "bin": {
-    "figma-cache": "bin/figma-cache.js"
-  },
-  "files": [
-    "LICENSE",
-    "bin",
-    "cursor-bootstrap",
-    "figma-cache/figma-cache.js",
-    "figma-cache/js/flow-cli.js",
-    "figma-cache/js/validate-cli.js",
-    "figma-cache/js/budget-cli.js",
-    "figma-cache/js/index-store.js",
-    "figma-cache/js/cursor-bootstrap-cli.js",
-    "figma-cache/js/entry-files.js",
-    "figma-cache/js/backfill-cli.js",
-    "figma-cache/js/project-config.js",
-    "figma-cache/js/upsert-core.js",
-    "figma-cache/docs/*.md"
-  ],
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org/"
-  },
-  "scripts": {
-    "test": "npm run cursor:shadow:check && npm run docs:encoding:check && node tests/rules-guard.js && node tests/smoke.js",
-    "prepack": "npm run cursor:shadow:check && npm run docs:encoding:check && node bin/figma-cache.js validate",
-    "figma:cache:normalize": "node bin/figma-cache.js normalize",
-    "figma:cache:get": "node bin/figma-cache.js get",
-    "figma:cache:upsert": "node bin/figma-cache.js upsert",
-    "figma:cache:ensure": "node bin/figma-cache.js ensure",
-    "figma:cache:validate": "node bin/figma-cache.js validate",
-    "figma:cache:stale": "node bin/figma-cache.js stale",
-    "figma:cache:budget": "node bin/figma-cache.js budget --mcp-only",
-    "figma:cache:backfill": "node bin/figma-cache.js backfill",
-    "figma:cache:init": "node bin/figma-cache.js init",
-    "figma:cache:config": "node bin/figma-cache.js config",
-    "figma:cache:flow:init": "node bin/figma-cache.js flow init",
-    "figma:cache:flow:add-node": "node bin/figma-cache.js flow add-node",
-    "figma:cache:flow:link": "node bin/figma-cache.js flow link",
-    "figma:cache:flow:chain": "node bin/figma-cache.js flow chain",
-    "figma:cache:flow:show": "node bin/figma-cache.js flow show",
-    "figma:cache:flow:mermaid": "node bin/figma-cache.js flow mermaid",
-    "figma:cache:cursor:init": "node bin/figma-cache.js cursor init",
-    "cursor:shadow:sync": "node scripts/sync-cursor-shadow.js",
-    "cursor:shadow:check": "node scripts/check-cursor-shadow.js",
-    "docs:encoding:check": "node scripts/check-doc-encoding.js",
-    "figma:cache:mobile:spec": "node scripts/mobile/generate-mobile-spec.js",
-    "figma:ui:gate": "npm run figma:cache:validate && npm run cursor:shadow:check && npm test"
-  },
-  "volta": {
-    "node": "16.20.2"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/907086379/figma-cache-toolchain.git"
-  },
-  "bugs": {
-    "url": "https://github.com/907086379/figma-cache-toolchain/issues"
-  }
+    "name":  "figma-cache-toolchain",
+    "version":  "2.0.3",
+    "description":  "Figma link normalization, local cache index, validation, and Node CLI (framework-agnostic core).",
+    "homepage":  "https://github.com/907086379/figma-cache-toolchain#readme",
+    "keywords":  [
+                     "figma",
+                     "cache",
+                     "cli",
+                     "design-tokens",
+                     "mcp"
+                 ],
+    "license":  "MIT",
+    "engines":  {
+                    "node":  "\u003e=16.20.0"
+                },
+    "bin":  {
+                "figma-cache":  "bin/figma-cache.js"
+            },
+    "files":  [
+                  "LICENSE",
+                  "bin",
+                  "cursor-bootstrap",
+                  "figma-cache/figma-cache.js",
+                  "figma-cache/js/flow-cli.js",
+                  "figma-cache/js/validate-cli.js",
+                  "figma-cache/js/budget-cli.js",
+                  "figma-cache/js/index-store.js",
+                  "figma-cache/js/cursor-bootstrap-cli.js",
+                  "figma-cache/js/entry-files.js",
+                  "figma-cache/js/backfill-cli.js",
+                  "figma-cache/js/project-config.js",
+                  "figma-cache/js/contract-check-cli.js",
+                  "figma-cache/js/upsert-core.js",
+                  "figma-cache/docs/*.md"
+              ],
+    "publishConfig":  {
+                          "registry":  "https://registry.npmjs.org/"
+                      },
+    "scripts":  {
+                    "test":  "npm run cursor:shadow:check \u0026\u0026 npm run docs:encoding:check \u0026\u0026 node tests/rules-guard.js \u0026\u0026 node tests/smoke.js",
+                    "prepack":  "npm run cursor:shadow:check \u0026\u0026 npm run docs:encoding:check \u0026\u0026 node bin/figma-cache.js validate",
+                    "figma:cache:normalize":  "node bin/figma-cache.js normalize",
+                    "figma:cache:get":  "node bin/figma-cache.js get",
+                    "figma:cache:upsert":  "node bin/figma-cache.js upsert",
+                    "figma:cache:ensure":  "node bin/figma-cache.js ensure",
+                    "figma:cache:validate":  "node bin/figma-cache.js validate",
+                    "figma:cache:stale":  "node bin/figma-cache.js stale",
+                    "figma:cache:budget":  "node bin/figma-cache.js budget --mcp-only",
+                    "figma:cache:backfill":  "node bin/figma-cache.js backfill",
+                    "figma:cache:init":  "node bin/figma-cache.js init",
+                    "figma:cache:config":  "node bin/figma-cache.js config",
+                    "figma:cache:flow:init":  "node bin/figma-cache.js flow init",
+                    "figma:cache:flow:add-node":  "node bin/figma-cache.js flow add-node",
+                    "figma:cache:flow:link":  "node bin/figma-cache.js flow link",
+                    "figma:cache:flow:chain":  "node bin/figma-cache.js flow chain",
+                    "figma:cache:flow:show":  "node bin/figma-cache.js flow show",
+                    "figma:cache:flow:mermaid":  "node bin/figma-cache.js flow mermaid",
+                    "figma:cache:cursor:init":  "node bin/figma-cache.js cursor init",
+                    "cursor:shadow:sync":  "node scripts/sync-cursor-shadow.js",
+                    "cursor:shadow:check":  "node scripts/check-cursor-shadow.js",
+                    "docs:encoding:check":  "node scripts/check-doc-encoding.js",
+                    "figma:cache:mobile:spec":  "node scripts/mobile/generate-mobile-spec.js",
+                    "figma:ui:gate":  "npm run figma:cache:validate \u0026\u0026 npm run cursor:shadow:check \u0026\u0026 npm test",
+                    "figma:cache:contract:check":  "node bin/figma-cache.js contract-check",
+                    "preflight:shell":  "node scripts/preflight-shell.js --warn",
+                    "preflight:shell:strict":  "node scripts/preflight-shell.js --strict"
+                },
+    "volta":  {
+                  "node":  "16.20.2"
+              },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/907086379/figma-cache-toolchain.git"
+                   },
+    "bugs":  {
+                 "url":  "https://github.com/907086379/figma-cache-toolchain/issues"
+             }
 }

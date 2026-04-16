@@ -322,6 +322,72 @@ assert.ok(exitCode > 0, "unknown command should exit non-zero");
 }
 
 
+// contract-check: should pass with mapped token/state and fail on unmapped
+{
+  const { env } = createTempEnv("figma-cache-smoke-contract-check-");
+
+  runWithEnv(
+    `ensure "${TEST_URL}" --source=manual --completeness=layout,text,tokens,interactions,states,accessibility`,
+    env
+  );
+
+  const contractPath = path.join(env.FIGMA_CACHE_DIR, "adapters", "ui-adapter.contract.json");
+  fs.mkdirSync(path.dirname(contractPath), { recursive: true });
+  fs.writeFileSync(
+    contractPath,
+    JSON.stringify(
+      {
+        tokenMappings: [
+          {
+            id: "token.blue",
+            figmaToken: "Textr Team Blue/Textr Team Blue 500",
+            figmaValue: "#305AFE",
+            required: true,
+            projectBinding: { type: "literal", value: "#305AFE" },
+          },
+        ],
+        stateMappings: {
+          select: {
+            requiredStates: ["default", "expanded", "selected", "unselected"],
+          },
+        },
+      },
+      null,
+      2
+    ) + "\n",
+    "utf8"
+  );
+
+  runWithEnv(`contract-check --cacheKey=${CACHE_KEY}`, {
+    ...env,
+    FIGMA_CACHE_ADAPTER_CONTRACT: contractPath,
+  });
+
+  runWithEnv(`contract-check --cacheKey=${CACHE_KEY} --warn-unmapped-states`, {
+    ...env,
+    FIGMA_CACHE_ADAPTER_CONTRACT: contractPath,
+  });
+
+  const specPath = path.join(env.FIGMA_CACHE_DIR, "files", FILE_KEY, "nodes", SAFE_NODE_ID, "spec.md");
+  const originalSpec = fs.readFileSync(specPath, "utf8");
+  fs.writeFileSync(specPath, `${originalSpec}\n- Custom Missing Token: #123456\n`, "utf8");
+
+  const failErr = expectThrow(
+    () =>
+      runWithEnv(`contract-check --cacheKey=${CACHE_KEY} --warn-unmapped-states`, {
+        ...env,
+        FIGMA_CACHE_ADAPTER_CONTRACT: contractPath,
+      }),
+    "contract-check should fail when token mapping is missing"
+  );
+  assert.strictEqual(failErr.status, 2, "contract-check should fail with exit code 2");
+
+  runWithEnv(`contract-check --cacheKey=${CACHE_KEY} --warn-unmapped-tokens --warn-unmapped-states`, {
+    ...env,
+    FIGMA_CACHE_ADAPTER_CONTRACT: contractPath,
+  });
+}
+
 // cursor init: should ensure figma-cache.config.js and cleanup safe legacy example
 {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "figma-cache-smoke-cursor-init-"));
@@ -350,6 +416,27 @@ assert.ok(exitCode > 0, "unknown command should exit non-zero");
   const configBody = fs.readFileSync(configPath, "utf8");
   assert.ok(configBody.includes("module.exports"), "generated config should be valid JS module");
 
+  const contractTemplatePath = path.join(
+    tempRoot,
+    "cursor-bootstrap",
+    "examples",
+    "ui-adapter.contract.template.json"
+  );
+  const preflightTemplatePath = path.join(
+    tempRoot,
+    "cursor-bootstrap",
+    "examples",
+    "ui-1to1-preflight.template.md"
+  );
+  assert.ok(
+    fs.existsSync(contractTemplatePath),
+    "cursor init should copy ui-adapter contract template to project"
+  );
+  assert.ok(
+    fs.existsSync(preflightTemplatePath),
+    "cursor init should copy ui preflight template to project"
+  );
+
   const keepExistingOutput = runInDir("cursor init", tempRoot, env);
   const keepResult = JSON.parse(keepExistingOutput.split(/\r?\n\r?\n/)[0]);
   assert.ok(keepResult.skipped >= 1, "default cursor init should keep existing .cursor templates");
@@ -377,6 +464,22 @@ assert.ok(exitCode > 0, "unknown command should exit non-zero");
     !fs.existsSync(path.join(retiredSkillDir, "SKILL.md")),
     "cursor init should remove retired managed files from manifest"
   );
+}
+
+if (process.platform === "win32") {
+  const strictErr = expectThrow(
+    () =>
+      execSync(
+        `powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File "${path.join(root, "scripts", "preflight.ps1")}" -Mode strict`,
+        {
+          cwd: root,
+          encoding: "utf8",
+          stdio: ["pipe", "pipe", "pipe"],
+        }
+      ),
+    "preflight strict should fail in Windows PowerShell host"
+  );
+  assert.strictEqual(strictErr.status, 2, "preflight strict should exit with code 2");
 }
 
 console.log("smoke: ok");
