@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "scope": "node",
+  "description": "Node-level override for exceptional visual/interaction differences.",
+  "tokenMappings": [
+    {
+      "id": "node.token.override.example",
+      "figmaToken": "Example/Primary",
+      "figmaValue": "#305AFE",
+      "required": false,
+      "projectBinding": {
+        "type": "literal",
+        "value": "#305AFE",
+        "notes": "Only use when this node truly differs from global contract."
+      }
+    }
+  ],
+  "stateMappings": {
+    "select": {
+      "requiredStates": ["default", "expanded", "selected", "unselected"]
+    }
+  },
+  "layoutRules": [],
+  "typographyRules": [],
+  "interactionRules": []
+}

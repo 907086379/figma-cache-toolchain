@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "UI 1to1 Audit Report",
+  "type": "object",
+  "required": [
+    "ok",
+    "generatedAt",
+    "summary",
+    "blocking",
+    "warnings",
+    "diffs",
+    "items"
+  ],
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "checkedItems",
+        "score",
+        "blockingCount",
+        "warningCount",
+        "diffCount",
+        "minScore"
+      ],
+      "properties": {
+        "checkedItems": { "type": "integer" },
+        "blockingCount": { "type": "integer" },
+        "warningCount": { "type": "integer" },
+        "diffCount": { "type": "integer" },
+        "minScore": { "type": "number" },
+        "recipesTotal": { "type": "integer" },
+        "recipesMatchedItems": { "type": "integer" },
+        "score": {
+          "type": "object",
+          "required": ["total", "layout", "text", "token", "state", "interaction"],
+          "properties": {
+            "total": { "type": "number" },
+            "layout": { "type": "number" },
+            "text": { "type": "number" },
+            "token": { "type": "number" },
+            "state": { "type": "number" },
+            "interaction": { "type": "number" }
+          }
+        }
+      }
+    },
+    "blocking": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "diffs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["cacheKey", "score", "blocking", "warnings", "diffs"],
+        "properties": {
+          "cacheKey": { "type": "string" },
+          "score": {
+            "type": "object",
+            "required": ["total", "layout", "text", "token", "state", "interaction"],
+            "properties": {
+              "total": { "type": "number" },
+              "layout": { "type": "number" },
+              "text": { "type": "number" },
+              "token": { "type": "number" },
+              "state": { "type": "number" },
+              "interaction": { "type": "number" }
+            }
+          },
+          "blocking": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "diffs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "matchedRecipes": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

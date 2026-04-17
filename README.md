@@ -121,10 +121,41 @@ npm run figma:cache:get -- "<figma-url>"
 npm run figma:cache:ensure -- "<figma-url>" --source=manual --completeness=layout,text,tokens,interactions,states,accessibility
 npm run figma:cache:upsert -- "<figma-url>" --source=figma-mcp --completeness=layout,text,tokens,interactions,states,accessibility
 npm run figma:cache:validate
+npm run figma:ui:preflight
+npm run figma:ui:audit -- --min-score=85
+npm run figma:ui:report:aggregate
+npm run figma:ui:accept -- --target=src/components/YourComponent.tsx
+npm run figma:ui:e2e:cross -- --target-project=E:/Work/vue-demo --fileKey=<fileKey> --nodeId=9277-28772 --target=E:/Work/vue-demo/src/components/YourComponent.vue
+npm run figma:ui:gate
+npm run figma:ui:gate:pr
+npm run figma:ui:gate:main
 npm run figma:cache:budget
 npm run figma:cache:stale
 npm run figma:cache:backfill
 ```
+
+UI preflight/gate 说明：
+
+- `figma:ui:preflight` 会读取缓存索引与 adapter contract，输出 `figma-cache/reports/ui-preflight-report.json`
+- 若存在阻断项（如关键文件缺失、coverage evidence 缺失、contract 映射为空），命令返回退出码 `2`
+- `figma:ui:audit` 会输出 `figma-cache/reports/ui-1to1-report.json`，提供 `score.total/layout/text/token/state/interaction`、`diffs`、`blocking`、`warnings`
+- `figma:ui:audit` 基于 `figma-cache/js/ui-facts-normalizer.js` 统一标准化 `spec/raw/state-map/mcp-raw` 事实，默认更偏通用规则而非单组件特化
+- `figma:ui:audit` 会加载 `figma-cache/adapters/recipes/`（前10类高频组件库），仅做可选命中与建议，不做全局强制绑定
+- `figma:ui:gate` 会先跑 preflight + audit（默认阈值 `85`），再串联 `validate`、`cursor:shadow:check` 与 `npm test`
+- `figma:ui:report:aggregate` 会聚合 preflight + audit 报告，输出 `figma-cache/reports/ui-quality-summary.json`
+- `figma:ui:accept` 是一键自动验收：自动跑 preflight + audit + aggregate，并按效果阈值直接返回 pass/fail（退出码）
+- `figma:ui:e2e:cross` 是跨项目联调：自动 `npm pack` 当前包 -> 安装到目标项目 -> 执行自动验收 -> 回收报告路径与摘要
+- 支持 `--auto-ensure-on-miss`：cache miss 时自动尝试 `--source=figma-mcp ensure`
+- 支持 `--batch-file=<json>`：批量节点联调并汇总结果（单条失败即整体失败）
+- 支持 `--fix-loop=<N>`：失败后自动执行自修复重试（补 contract / 刷新缓存后重跑）
+- CI 建议矩阵：`figma:ui:gate:pr`（PR 最低门槛）与 `figma:ui:gate:main`（主干严格门槛）
+
+UI profile 分层（P3）：
+
+- `FIGMA_UI_PROFILE=fast|standard|strict`（默认 `standard`）
+- `fast`：低门槛快速反馈（audit 默认阈值 70）
+- `standard`：团队默认（audit 默认阈值 85）
+- `strict`：preflight warning 视为阻断，audit 默认阈值 92 且要求 `--target`
 
 严格证据模式（默认开启）：
 

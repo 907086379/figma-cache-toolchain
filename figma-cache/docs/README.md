@@ -66,12 +66,97 @@ npm run figma:cache:config
 - 单链接且无关系意图、仅视觉微调、仅资产导出时，不自动追加 `flow`
 - 若自动追加了 `flow`，Agent 输出中必须记录触发原因：`关键词命中` 或 `多链接串联意图`
 - `npm run figma:cache:validate`
+- `npm run figma:ui:preflight`
+- `npm run figma:ui:audit -- --min-score=85`
+- `npm run figma:ui:report:aggregate`
+- `npm run figma:ui:accept -- --target=<componentPath>`
+- `npm run figma:ui:e2e:cross -- --target-project=E:/Work/vue-demo --fileKey=<fileKey> --nodeId=9277-28772 --target=E:/Work/vue-demo/src/components/YourComponent.vue`
+- `npm run figma:ui:gate`
+- `npm run figma:ui:gate:pr`
+- `npm run figma:ui:gate:main`
 - `npm run figma:cache:budget`（默认 `--mcp-only`）
 - `npm run figma:cache:stale`
 - `npm run figma:cache:backfill`
 > 注意：`ensure` 默认职责是“写索引 + 生成骨架文件”，不是 MCP 拉取器。  
 > 当 `upsert/ensure` 传 `--source=figma-mcp` 且未显式允许骨架模式时，CLI 会先执行 MCP 原始证据门禁（缺失即失败，退出码 2）。
 > 正确流程是先由 Agent/Figma MCP 获取最小调用集并写入 `mcp-raw/`，再执行 `upsert/ensure` 与 `validate`。
+
+### UI preflight（P0 门禁）
+
+- `npm run figma:ui:preflight`：读取 `index.json`、adapter contract 与节点关键文件，输出结构化报告到 `figma-cache/reports/ui-preflight-report.json`
+- 支持参数：`--cacheKey=<fileKey#nodeId>`、`--contract=<path>`、`--report=<path>`、`--allow-warn`
+- 阻断项返回退出码 `2`：包括 cacheKey 不存在、关键文件缺失、coverage evidence 不完整、contract 缺失或映射为空、`source=figma-mcp` 时缺失 `mcp-raw-manifest.json`
+- warning 项（不阻断）会提示 `spec.md`/`state-map.md` 中的 TODO 占位
+
+### UI gate（含 preflight 前置）
+
+- `npm run figma:ui:gate` 当前执行链：`figma:ui:preflight` -> `figma:ui:audit -- --min-score=85` -> `figma:cache:validate` -> `cursor:shadow:check` -> `npm test`
+- `npm run figma:ui:gate:pr`：PR 最低门槛（preflight + validate）
+- `npm run figma:ui:gate:main`：主干门槛（preflight + audit90 + aggregate + validate + test）
+
+### UI 1:1 audit（P1 质量评分）
+
+- `npm run figma:ui:audit -- --cacheKey=<fileKey#nodeId> --target=<componentPath> --min-score=85`
+- 默认报告：`figma-cache/reports/ui-1to1-report.json`
+- 报告结构遵循：`figma-cache/docs/ui-1to1-report.schema.json`
+- 评分字段：`score.total/layout/text/token/state/interaction`
+- `score.total` 低于 `--min-score` 会返回退出码 `2`（可用于 CI 门禁）
+- 审计底层使用通用事实标准化层：`figma-cache/js/ui-facts-normalizer.js`，统一读取 `spec/raw/state-map/mcp-raw`，避免只对单一组件类型优化
+
+### Recipe 机制（P2）
+
+- 目录：`figma-cache/adapters/recipes/`
+- 当前内置（前10类高频组件覆盖）：`select`、`input`、`modal`、`table`、`button`、`checkbox`、`radio`、`tabs`、`tooltip`、`card`
+- 每个 recipe 约束：结构模板、状态机、token 优先级、常见陷阱
+- recipe 为可选命中，不会默认强制所有节点套用，避免损害通用性
+
+### Contract 规则增强与节点 override（P2）
+
+- `ui-adapter.contract.json` 现支持：
+  - `layoutRules`
+  - `typographyRules`
+  - `interactionRules`
+- `contract-check` 现支持规则级校验（基于 spec/state/raw 内容）
+- 节点 override：`figma-cache/files/<fileKey>/nodes/<nodeId>/ui-override.json`
+  - 只用于节点差异
+  - 已内置与全局 contract 的冲突检测（token 绑定冲突、requiredStates 缺失）
+
+### Profile 分层与报告聚合（P3）
+
+- 环境变量：`FIGMA_UI_PROFILE=fast|standard|strict`（默认 `standard`）
+- `fast`：audit 默认阈值 70
+- `standard`：audit 默认阈值 85
+- `strict`：preflight warning 计入阻断、audit 默认阈值 92 且要求 `--target`
+- 报告聚合：`npm run figma:ui:report:aggregate`
+  - 输出：`figma-cache/reports/ui-quality-summary.json`
+
+### 一键自动验收（效果导向）
+
+- `npm run figma:ui:accept -- --cacheKey=<fileKey#nodeId> --target=<componentPath> --min-score=90`
+- 自动流程：preflight -> audit -> aggregate -> 验收判定
+- 默认严格判定：
+  - preflight 必须无 blocking
+  - audit score 不低于阈值
+  - 必须提供并命中 `targetPath`
+  - warning/diff 需在阈值内（可通过 `--max-warnings`、`--max-diffs` 调整）
+
+### 跨项目联调（toolchain -> 业务项目）
+
+- 命令：`npm run figma:ui:e2e:cross`
+- 自动流程：
+  1) 在当前 toolchain 项目执行 `npm pack`
+  2) 在目标项目安装本地 tgz
+  3) 在目标项目执行 `ui-auto-acceptance`
+  4) 输出目标项目报告路径与汇总指标
+- 推荐参数：
+  - `--target-project=E:/Work/vue-demo`
+  - `--fileKey=<fileKey>` + `--nodeId=9277-28772`（会自动标准化为 `9277:28772`）
+  - 或直接 `--cacheKey=<fileKey#9277:28772>`
+- 可选增强：
+  - `--auto-ensure-on-miss`：cache miss 时自动触发 figma-mcp ensure
+  - `--allow-skeleton-with-figma-mcp`：允许 skeleton 写入（仅建议应急）
+  - `--batch-file=<json>`：批量执行，多节点一次联调
+  - `--fix-loop=<N>`：失败自动重试 N 轮（重试前会补 contract 并刷新缓存）
 
 ### 严格 validate 规则（默认）
 

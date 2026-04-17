@@ -7,6 +7,9 @@
 | `vue2-vuetify2-adapter.reference.mdc` | 历史 Vue2 + Vuetify2 参考规则 |
 | `generated-ui-reset.css.template` | 老项目 B0 局部 reset 模板（推荐默认） |
 | `ui-adapter.contract.template.json` | 全局 UI adapter contract 模板（token/state 映射单一真源） |
+| `ui-override.template.json` | 节点级 override 模板（仅处理局部差异） |
+| `ui-execution-template.fast.md` | 快速模式执行模板（fast） |
+| `ui-execution-template.strict.md` | 严格模式执行模板（strict） |
 
 ## B0 推荐用法（目标业务项目）
 1. 复制模板到项目：`src/styles/generated-ui-reset.css`
