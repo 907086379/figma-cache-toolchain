@@ -67,6 +67,16 @@ function runSmokeCoreBasics(context) {
       runWithEnv(`upsert "${TEST_URL}" --source=figma-mcp --completeness=layout,text,tokens`, env).trim()
     );
     assert.strictEqual(result.cacheKey, CACHE_KEY);
+
+    runWithEnv(`enrich "${TEST_URL}"`, env);
+    const rawPath = path.join(cacheDir, "files", FILE_KEY, "nodes", SAFE_NODE_ID, "raw.json");
+    const raw = JSON.parse(fs.readFileSync(rawPath, "utf8"));
+    assert.ok(raw.evidenceSummary && raw.evidenceSummary.version === 1);
+    assert.ok(raw.evidenceSummary.designContextBytes > 0);
+
+    const enrichAllOut = JSON.parse(runWithEnv("enrich --all", env).trim());
+    assert.strictEqual(enrichAllOut.ok, true);
+    assert.ok(enrichAllOut.enriched >= 1);
   }
 
   // strict evidence: truncated/omitted mcp-raw should be rejected

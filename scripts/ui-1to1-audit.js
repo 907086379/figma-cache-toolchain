@@ -16,6 +16,23 @@ const DEFAULT_MIN_SCORE = 85;
 const DEFAULT_RECIPES_DIR = "figma-cache/adapters/recipes";
 const FAIL_EXIT_CODE = 2;
 
+function parseBoolEnv(value, fallback) {
+  if (value == null) return fallback;
+  const v = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  if (["0", "false", "no", "off"].includes(v)) return false;
+  return fallback;
+}
+
+function filterRemoteFigmaAssetRefs(input) {
+  const text = String(input || "");
+  // Mask Figma MCP asset URLs (often require auth; non-deterministic in runtime).
+  // This keeps audits stable when teams choose to not ship remote figma assets.
+  return text
+    .replace(/https:\/\/www\.figma\.com\/api\/mcp\/asset\/[a-z0-9-]+/gi, "__FIGMA_MCP_ASSET__")
+    .replace(/\bimg[A-Za-z0-9_]*\s*=\s*['"]https:\/\/www\.figma\.com\/api\/mcp\/asset\/[a-z0-9-]+['"]/gi, "img__=__FIGMA_MCP_ASSET__");
+}
+
 function normalizeSlash(input) {
   return String(input || "").replace(/\\/g, "/");
 }
@@ -51,6 +68,7 @@ function parseArgs(argv) {
     reportPath: DEFAULT_REPORT_PATH,
     minScore: DEFAULT_MIN_SCORE,
     recipesDir: DEFAULT_RECIPES_DIR,
+    filterRemoteFigmaAssets: parseBoolEnv(process.env.FIGMA_UI_FILTER_REMOTE_FIGMA_ASSETS, true),
     unknownArgs: [],
   };
 
@@ -78,6 +96,10 @@ function parseArgs(argv) {
     }
     if (arg.startsWith("--recipes-dir=")) {
       options.recipesDir = arg.split("=").slice(1).join("=").trim() || DEFAULT_RECIPES_DIR;
+      return;
+    }
+    if (arg === "--no-filter-remote-figma-assets") {
+      options.filterRemoteFigmaAssets = false;
       return;
     }
     options.unknownArgs.push(arg);
@@ -170,7 +192,7 @@ function detectMatchedRecipes(recipes, contextText, statesInCache) {
 }
 
 function scoreItem(params) {
-  const { cacheKey, item, contract, targetCode, recipes } = params;
+  const { cacheKey, item, contract, targetCode, recipes, options } = params;
   const blocking = [];
   const warnings = [];
   const diffs = [];
@@ -261,9 +283,13 @@ function scoreItem(params) {
   }
 
   const hasTodo = normalizedFacts.hasPlaceholder;
+  const effectiveTargetCode =
+    options && options.filterRemoteFigmaAssets
+      ? filterRemoteFigmaAssetRefs(targetCode)
+      : String(targetCode || "");
   const matchedRecipes = detectMatchedRecipes(
     recipes,
-    `${specText}\n${stateMapText}\n${JSON.stringify(rawJson || {})}\n${targetCode}`,
+    `${specText}\n${stateMapText}\n${JSON.stringify(rawJson || {})}\n${effectiveTargetCode}`,
     statesInCache
   );
   if (!matchedRecipes.length) {
@@ -283,11 +309,11 @@ function scoreItem(params) {
     : textFacts.length;
   const tokenCodeHits = hasTargetCode
     ? tokenFacts.filter((fact) =>
-        targetCode.toUpperCase().includes(String(normalizeHexColor(fact.value || "")).toUpperCase())
+        effectiveTargetCode.toUpperCase().includes(String(normalizeHexColor(fact.value || "")).toUpperCase())
       ).length
     : tokenFacts.length;
   const stateCodeHits = hasTargetCode
-    ? statesInCache.filter((state) => targetCode.toLowerCase().includes(state)).length
+    ? statesInCache.filter((state) => effectiveTargetCode.toLowerCase().includes(state)).length
     : statesInCache.length;
 
   const layoutScore = entryReady ? 100 : 20;
@@ -361,6 +387,7 @@ function run() {
       contract,
       targetCode,
       recipes,
+      options,
     })
   );
 
@@ -409,6 +436,7 @@ function run() {
       contractPath: normalizeSlash(contractPath),
       reportPath: normalizeSlash(reportPath),
       recipesDir: normalizeSlash(recipesDir),
+      filterRemoteFigmaAssets: options.filterRemoteFigmaAssets,
     },
     blocking,
     warnings,

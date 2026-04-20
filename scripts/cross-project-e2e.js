@@ -46,7 +46,8 @@ function parseArgs(argv) {
     autoBootstrapContract: true,
     autoEnsureOnMiss: false,
     allowSkeletonWithFigmaMcp: false,
-    completeness: "layout,text,tokens,interactions,states,accessibility",
+    // Default to "best effort" evidence to support 1:1 audits out-of-the-box.
+    completeness: "layout,text,tokens,assets,interactions,states,accessibility",
     batchFile: "",
     fixLoop: 0,
     emitAgentTaskOnFail: false,

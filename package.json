@@ -1,6 +1,6 @@
 {
     "name": "figma-cache-toolchain",
-    "version": "2.0.5",
+    "version": "2.0.7",
     "description": "Figma link normalization, local cache index, validation, and Node CLI (framework-agnostic core).",
     "homepage": "https://github.com/907086379/figma-cache-toolchain#readme",
     "keywords": [
@@ -28,6 +28,8 @@
         "figma-cache/js/index-store.js",
         "figma-cache/js/cursor-bootstrap-cli.js",
         "figma-cache/js/entry-files.js",
+        "figma-cache/js/raw-derivatives.js",
+        "figma-cache/js/related-cache-keys.js",
         "figma-cache/js/backfill-cli.js",
         "figma-cache/js/project-config.js",
         "figma-cache/js/contract-check-cli.js",
@@ -39,15 +41,24 @@
         "scripts/ui-report-aggregate.js",
         "scripts/ui-auto-acceptance.js",
         "scripts/cross-project-e2e.js",
+        "scripts/forbidden-markup-check.cjs",
+        "scripts/generate-icon-insets.cjs",
+        "scripts/generate-icon-insets-from-batch.cjs",
+        "scripts/auto-link-related-from-batch.cjs",
+        "scripts/import-mcp-raw-evidence.cjs",
+        "scripts/merge-figma-geometry-metrics.cjs",
+        "scripts/apply-auto-related-suggestions.cjs",
+        "scripts/archive-artifacts-from-batch.cjs",
         "figma-cache/adapters/recipes/*.json",
         "figma-cache/docs/*.md",
-        "figma-cache/docs/ui-1to1-report.schema.json"
+        "figma-cache/docs/ui-1to1-report.schema.json",
+        "figma-cache/docs/raw-json-extensions.schema.json"
     ],
     "publishConfig": {
         "registry": "https://registry.npmjs.org/"
     },
     "scripts": {
-        "test": "npm run cursor:shadow:check && npm run docs:encoding:check && node tests/rules-guard.js && node tests/smoke.js",
+        "test": "npm run cursor:shadow:check && npm run docs:encoding:check && node tests/rules-guard.js && node tests/raw-derivatives.test.js && node tests/related-cache-keys.test.js && node tests/smoke.js",
         "prepack": "npm run cursor:shadow:check && npm run docs:encoding:check && node bin/figma-cache.js validate",
         "figma:cache:normalize": "node bin/figma-cache.js normalize",
         "figma:cache:get": "node bin/figma-cache.js get",
@@ -78,6 +89,8 @@
         "figma:ui:gate": "npm run figma:ui:preflight && npm run figma:ui:audit -- --min-score=85 && npm run figma:cache:validate && npm run cursor:shadow:check && npm test",
         "figma:ui:gate:pr": "npm run figma:ui:preflight && npm run figma:cache:validate",
         "figma:ui:gate:main": "npm run figma:ui:preflight && npm run figma:ui:audit -- --min-score=90 && npm run figma:ui:report:aggregate && npm run figma:cache:validate && npm run cursor:shadow:check && npm test",
+        "figma:cache:merge-geometry": "node scripts/merge-figma-geometry-metrics.cjs",
+        "figma:cache:enrich": "node bin/figma-cache.js enrich",
         "figma:cache:contract:check": "node bin/figma-cache.js contract-check",
         "preflight:shell": "node scripts/preflight-shell.js --warn",
         "preflight:shell:strict": "node scripts/preflight-shell.js --strict"

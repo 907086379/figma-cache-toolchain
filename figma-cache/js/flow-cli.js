@@ -9,6 +9,41 @@ function slugifyFlowId(name) {
   return raw || `flow-${Date.now()}`;
 }
 
+function normalizeNodeId(input) {
+  const value = String(input || "").trim();
+  if (!value) return "";
+  return value.includes(":") ? value : value.replace(/-/g, ":");
+}
+
+function normalizeCacheKey(input) {
+  const value = String(input || "").trim();
+  if (!value) return "";
+  const parts = value.split("#");
+  if (parts.length !== 2) return value;
+  return `${parts[0]}#${normalizeNodeId(parts[1])}`;
+}
+
+function resolveCacheKeyOrUrl(input, deps) {
+  const text = String(input || "").trim();
+  if (!text) return { kind: "empty", cacheKey: "" };
+
+  // Shorthand: <fileKey>#<nodeId>
+  if (text.includes("#")) {
+    return { kind: "cacheKey", cacheKey: normalizeCacheKey(text) };
+  }
+
+  // Shorthand: <nodeId> with default fileKey
+  if (/^(?:-?\d+[:-]-?\d+)$/.test(text)) {
+    const fileKey = process.env.FIGMA_DEFAULT_FILEKEY || "";
+    if (fileKey) {
+      return { kind: "cacheKey", cacheKey: `${fileKey}#${normalizeNodeId(text)}` };
+    }
+  }
+
+  // Fallback: treat as URL
+  return { kind: "url", cacheKey: deps.normalizeFigmaUrl(text).cacheKey, url: text };
+}
+
 function ensureFlow(index, flowId, meta, normalizeIndexShape) {
   const normalized = normalizeIndexShape(index);
   normalized.flows = normalized.flows || {};
@@ -91,13 +126,14 @@ function handleFlowCommand(args, deps) {
       console.error("Missing --flow=<flowId> or env FIGMA_DEFAULT_FLOW");
       process.exit(1);
     }
-    const url = rest.find((x) => !x.startsWith("--"));
+    const input = rest.find((x) => !x.startsWith("--"));
     const ensureArg = rest.includes("--ensure");
     const sourceArg = rest.find((x) => x.startsWith("--source="));
     const source = sourceArg ? sourceArg.split("=")[1] : "manual";
     const { completeness } = parseCompletenessFromArgs(rest);
     const index = normalizeIndexShape(readIndex());
-    const normalized = normalizeFigmaUrl(url);
+    const resolved = resolveCacheKeyOrUrl(input, { normalizeFigmaUrl });
+    const normalized = { cacheKey: resolved.cacheKey };
     if (!ensureArg && !getItem(index, normalized.cacheKey)) {
       console.error(
         `Missing cache item for ${normalized.cacheKey}. Run figma:cache:ensure first, or pass --ensure.`
@@ -105,7 +141,16 @@ function handleFlowCommand(args, deps) {
       process.exit(2);
     }
     if (ensureArg) {
-      upsertByUrl(url, { source, completeness });
+      if (resolved.kind !== "url" || !resolved.url) {
+        console.error(
+          `flow add-node --ensure requires a Figma URL. Got shorthand "${String(input || "").trim()}".`
+        );
+        console.error(
+          `Tip: set FIGMA_DEFAULT_FILEKEY and run figma:cache:ensure for this node first, then re-run flow add-node without --ensure.`
+        );
+        process.exit(2);
+      }
+      upsertByUrl(resolved.url, { source, completeness });
       const refreshed = normalizeIndexShape(readIndex());
       const item = getItem(refreshed, normalized.cacheKey);
       if (item) {
@@ -140,8 +185,8 @@ function handleFlowCommand(args, deps) {
     }
     const type = typeArg ? typeArg.split("=")[1] : "related";
     const note = noteArg ? noteArg.split("=").slice(1).join("=") : "";
-    const from = normalizeFigmaUrl(urls[0]).cacheKey;
-    const to = normalizeFigmaUrl(urls[1]).cacheKey;
+    const from = resolveCacheKeyOrUrl(urls[0], { normalizeFigmaUrl }).cacheKey;
+    const to = resolveCacheKeyOrUrl(urls[1], { normalizeFigmaUrl }).cacheKey;
     const index = normalizeIndexShape(readIndex());
     if (!getItem(index, from) || !getItem(index, to)) {
       console.error("Missing cache item for from/to. Cache urls first with ensure/upsert.");
@@ -169,7 +214,7 @@ function handleFlowCommand(args, deps) {
       process.exit(1);
     }
     const index = normalizeIndexShape(readIndex());
-    const keys = urls.map((u) => normalizeFigmaUrl(u).cacheKey);
+    const keys = urls.map((u) => resolveCacheKeyOrUrl(u, { normalizeFigmaUrl }).cacheKey);
     keys.forEach((k) => {
       if (!getItem(index, k)) {
         console.error(`Missing cache item for ${k}. Ensure each url is cached first.`);

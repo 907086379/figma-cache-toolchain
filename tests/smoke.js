@@ -100,6 +100,39 @@ function createTempEnv(prefix) {
   return { tempRoot, cacheDir, env };
 }
 
+/** get_design_context body that passes validate-cli anti-skeleton checks (smoke only). */
+function buildDefaultSmokeGetDesignContext(nodeId) {
+  const nid = String(nodeId || "1:2");
+  const lines = [];
+  lines.push(
+    `const imgSmokeA = "https://www.figma.com/api/mcp/asset/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";`
+  );
+  lines.push(
+    `const imgSmokeB = "https://www.figma.com/api/mcp/asset/bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee";`
+  );
+  lines.push(`export function SmokeFrame() {`);
+  lines.push(`  return (`);
+  lines.push(
+    `    <div className="bg-[#111111] flex flex-col gap-2 p-4" data-node-id="${nid}" data-name="smoke-root">`
+  );
+  for (let i = 0; i < 12; i += 1) {
+    lines.push(`      <div data-node-id="98:${100 + i}" className="content-stretch flex size-[24px]">`);
+    lines.push(
+      `        <img alt="" className="block max-w-none size-full" src={${
+        i % 2 ? "imgSmokeB" : "imgSmokeA"
+      }} />`
+    );
+    lines.push(`      </div>`);
+  }
+  lines.push(`    </div>`);
+  lines.push(`  );`);
+  lines.push(`}`);
+  lines.push("");
+  lines.push("// fixture padding to satisfy min-bytes checks");
+  lines.push(`// ${"y".repeat(1200)}`);
+  return lines.join("\n");
+}
+
 function ensureMcpEvidence(cacheDir, filesOrOptions) {
   const nodeDir = path.join(cacheDir, "files", FILE_KEY, "nodes", SAFE_NODE_ID);
   const mcpRawDir = path.join(nodeDir, "mcp-raw");
@@ -133,6 +166,10 @@ function ensureMcpEvidence(cacheDir, filesOrOptions) {
       content = Object.prototype.hasOwnProperty.call(contents, tool) ? contents[tool] : "<instance/>";
     } else if (tool === "get_variable_defs") {
       content = Object.prototype.hasOwnProperty.call(contents, tool) ? contents[tool] : "{}";
+    } else if (tool === "get_design_context") {
+      if (!Object.prototype.hasOwnProperty.call(contents, tool)) {
+        content = buildDefaultSmokeGetDesignContext(NODE_ID);
+      }
     }
     fs.writeFileSync(path.join(mcpRawDir, fileName), content, "utf8");
     fileHashes[tool] = crypto.createHash("sha256").update(content, "utf8").digest("hex");

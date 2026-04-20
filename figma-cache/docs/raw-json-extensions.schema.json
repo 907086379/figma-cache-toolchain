@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://figma-cache-toolchain/raw-json-extensions",
+  "title": "figma-cache raw.json optional extensions",
+  "description": "Loose schema for machine-derived fields merged during MCP hydrate. Core raw.json fields are not fully specified here.",
+  "type": "object",
+  "properties": {
+    "iconMetrics": {
+      "type": "array",
+      "description": "Icon box + inset metrics extracted from get_design_context (heuristic)."
+    },
+    "layoutMetrics": {
+      "type": "array",
+      "description": "Layout numbers merged from mcp-raw/figma-geometry-metrics.json (e.g. spacer_between_nodes_y)."
+    },
+    "relatedCacheKeys": {
+      "type": "array",
+      "description": "Peer cacheKeys linked via index.json flows (edge.type starts with \"related\", e.g. related_auto). Hydrate refresh overwrites from current index.",
+      "items": { "type": "string" }
+    },
+    "evidenceSummary": {
+      "type": "object",
+      "description": "Non-gating observability counts after hydrate (design context size, refs, geometry sidecar presence).",
+      "properties": {
+        "version": { "type": "integer" },
+        "generatedAt": { "type": "string" },
+        "designContextBytes": { "type": "integer", "minimum": 0 },
+        "metadataBytes": { "type": "integer", "minimum": 0 },
+        "dataNodeIdRefs": { "type": "integer", "minimum": 0 },
+        "dataNodeIdContainsScope": { "type": ["boolean", "null"] },
+        "designContextImgConstDefinitions": { "type": "integer", "minimum": 0 },
+        "imgTagOccurrences": { "type": "integer", "minimum": 0 },
+        "figmaAssetUrlOccurrences": { "type": "integer", "minimum": 0 },
+        "approximateHexColorLiterals": { "type": "integer", "minimum": 0 },
+        "variableDefKeys": { "type": "integer", "minimum": 0 },
+        "geometryFilePresent": { "type": "boolean" },
+        "iconMetricsCount": { "type": "integer", "minimum": 0 },
+        "layoutMetricsCount": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

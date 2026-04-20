@@ -1,5 +1,8 @@
 /* eslint-disable no-console */
 
+const { mergeLayoutMetricsFromGeometry, buildEvidenceSummary } = require("./raw-derivatives");
+const { itemCacheKeyFromItem } = require("./related-cache-keys");
+
 function createEntryFilesService(deps) {
   const {
     fs,
@@ -8,6 +11,7 @@ function createEntryFilesService(deps) {
     normalizeCompletenessList,
     completenessAllDimensions,
     runPostEnsureHook,
+    getRelatedCacheKeys,
   } = deps;
 
   function ensureFileWithDefault(relativePath, fallbackContent) {
@@ -35,6 +39,18 @@ function createEntryFilesService(deps) {
     } catch {
       return null;
     }
+  }
+
+  function writeJson(absPath, value) {
+    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    fs.writeFileSync(absPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  }
+
+  function upsertJsonFile(absPath, buildDefault, mutate) {
+    const current = safeReadJson(absPath);
+    const next = current && typeof current === "object" ? current : buildDefault();
+    const mutated = mutate(next) || next;
+    writeJson(absPath, mutated);
   }
 
   function isPlaceholderText(input) {
@@ -83,6 +99,92 @@ function createEntryFilesService(deps) {
     };
   }
 
+  function parseInsetShorthand(input) {
+    const text = String(input || "").trim();
+    if (!text) return null;
+    const normalized = text.replace(/^\[|\]$/g, "");
+    const parts = normalized
+      .split("_")
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+    if (!parts.length) return null;
+    const values = parts.map((p) => {
+      const m = p.match(/^(-?\d+(?:\.\d+)?)%$/);
+      return m ? Number(m[1]) : NaN;
+    });
+    if (values.some((n) => !Number.isFinite(n))) return null;
+    if (values.length === 1) {
+      return { top: values[0], right: values[0], bottom: values[0], left: values[0] };
+    }
+    if (values.length === 2) {
+      return { top: values[0], right: values[1], bottom: values[0], left: values[1] };
+    }
+    if (values.length === 3) {
+      return { top: values[0], right: values[1], bottom: values[2], left: values[1] };
+    }
+    return { top: values[0], right: values[1], bottom: values[2], left: values[3] };
+  }
+
+  function percentToPx(percent, boxPx) {
+    return (Number(percent) / 100) * Number(boxPx);
+  }
+
+  function extractIconMetricsFromDesignContext(designContextText) {
+    const text = String(designContextText || "");
+    if (!text) return [];
+
+    // Heuristic: icon outer container has size-[Npx] + data-node-id + data-name.
+    // The immediate inner vector wrapper often uses absolute inset-[..%..] specifying padding.
+    const outerRe =
+      /<div[^>]*className="[^"]*?\bsize-\[(\d+)px\][^"]*?"[^>]*data-node-id="([^"]+)"[^>]*data-name="([^"]+)"[^>]*>/gi;
+    const insetRe = /\babsolute\b[^"]*?\binset-\[([^\]]+)\]/i;
+
+    const metrics = [];
+    let outerMatch = null;
+    while ((outerMatch = outerRe.exec(text))) {
+      const box = Number(outerMatch[1]);
+      const outerNodeId = String(outerMatch[2] || "").trim();
+      const outerName = String(outerMatch[3] || "").trim();
+      if (!Number.isFinite(box) || box <= 0) continue;
+      const searchStart = outerRe.lastIndex;
+      const window = text.slice(searchStart, Math.min(text.length, searchStart + 900));
+      const insetMatch = window.match(insetRe);
+      if (!insetMatch) continue;
+      const insetRaw = `[${String(insetMatch[1] || "").trim()}]`;
+      const parsed = parseInsetShorthand(insetRaw);
+      if (!parsed) continue;
+
+      const topPx = percentToPx(parsed.top, box);
+      const rightPx = percentToPx(parsed.right, box);
+      const bottomPx = percentToPx(parsed.bottom, box);
+      const leftPx = percentToPx(parsed.left, box);
+      const glyphW = box - leftPx - rightPx;
+      const glyphH = box - topPx - bottomPx;
+
+      metrics.push({
+        nodeId: outerNodeId,
+        name: outerName,
+        boxPx: box,
+        insetPercent: { ...parsed },
+        insetPx: {
+          top: Number(topPx.toFixed(4)),
+          right: Number(rightPx.toFixed(4)),
+          bottom: Number(bottomPx.toFixed(4)),
+          left: Number(leftPx.toFixed(4)),
+        },
+        glyphPx: {
+          width: Number(glyphW.toFixed(4)),
+          height: Number(glyphH.toFixed(4)),
+        },
+        source: {
+          kind: "design_context_inset_percent",
+          insetRaw,
+        },
+      });
+    }
+    return metrics;
+  }
+
   function extractLayoutSummary(metadataText, fallbackName) {
     const text = String(metadataText || "");
     const idMatch = text.match(/id="([^"]+)"/);
@@ -100,11 +202,11 @@ function createEntryFilesService(deps) {
 
   function extractTextCandidates(designContextText) {
     const text = String(designContextText || "");
-    const regex = /<p[^>]*>\s*([^<\n][^<]{0,120})\s*<\/p>/g;
+    const regex = /<(p|div|span)[^>]*>\s*([^<\n][^<]{0,120})\s*<\/(p|div|span)>/g;
     const output = [];
     let match = null;
     while ((match = regex.exec(text))) {
-      const value = String(match[1] || "").replace(/\s+/g, " ").trim();
+      const value = String(match[2] || "").replace(/\s+/g, " ").trim();
       if (!value) {
         continue;
       }
@@ -227,16 +329,58 @@ function createEntryFilesService(deps) {
 
     const specAbs = resolveMaybeAbsolutePath(item.paths.spec);
     const stateMapAbs = resolveMaybeAbsolutePath(item.paths.stateMap);
-    const specText = safeReadText(specAbs);
-    const stateMapText = safeReadText(stateMapAbs);
-
-    if (isPlaceholderText(specText)) {
-      fs.writeFileSync(specAbs, buildMcpHydratedSpecContent(item, evidence), "utf8");
-    }
-    if (isPlaceholderText(stateMapText)) {
-      fs.writeFileSync(stateMapAbs, buildMcpHydratedStateMapContent(item), "utf8");
-    }
+    // Always refresh mcp-hydrated entry files to avoid stale evidence summaries
+    // when completeness changes or when earlier runs wrote placeholder content.
+    fs.writeFileSync(specAbs, buildMcpHydratedSpecContent(item, evidence), "utf8");
+    fs.writeFileSync(stateMapAbs, buildMcpHydratedStateMapContent(item), "utf8");
     hydrateRawTodoNotesIfNeeded(item, evidence);
+
+    // Persist machine-friendly icon metrics for 1:1 icon glyph sizing,
+    // optional layoutMetrics from mcp-raw/figma-geometry-metrics.json (Figma Plugin API / bounding boxes),
+    // and evidenceSummary (observability only; not used for validate gates).
+    try {
+      const iconMetrics = extractIconMetricsFromDesignContext(evidence.designContextText);
+      const rawAbs = resolveMaybeAbsolutePath(item.paths.raw);
+      const nodeDir = findNodeDirByItem(item);
+      const geometryAbs = nodeDir
+        ? path.join(nodeDir, "mcp-raw", "figma-geometry-metrics.json")
+        : "";
+      const geometry = geometryAbs ? safeReadJson(geometryAbs) : null;
+      const geometryFilePresent = !!(geometryAbs && fs.existsSync(geometryAbs));
+      upsertJsonFile(
+        rawAbs,
+        () => JSON.parse(buildDefaultRawContent(item)),
+        (next) => {
+          next.iconMetrics = iconMetrics;
+          mergeLayoutMetricsFromGeometry(next, geometry);
+          const iconN = Array.isArray(next.iconMetrics) ? next.iconMetrics.length : 0;
+          const layoutN = Array.isArray(next.layoutMetrics) ? next.layoutMetrics.length : 0;
+          next.evidenceSummary = buildEvidenceSummary({
+            designContextText: evidence.designContextText,
+            metadataText: evidence.metadataText,
+            variableDefs: evidence.variableDefs,
+            nodeId: item.nodeId || "",
+            geometryFilePresent,
+            iconMetricsCount: iconN,
+            layoutMetricsCount: layoutN,
+          });
+          let relatedCacheKeys = [];
+          if (typeof getRelatedCacheKeys === "function") {
+            try {
+              relatedCacheKeys = getRelatedCacheKeys(itemCacheKeyFromItem(item)) || [];
+            } catch {
+              relatedCacheKeys = [];
+            }
+          }
+          if (Array.isArray(relatedCacheKeys) && relatedCacheKeys.length) {
+            next.relatedCacheKeys = relatedCacheKeys;
+          } else {
+            delete next.relatedCacheKeys;
+          }
+          return next;
+        }
+      );
+    } catch {}
   }
 
   function buildCoverageSummary(completeness) {
@@ -254,6 +398,8 @@ function createEntryFilesService(deps) {
         accessibility: covered.includes("accessibility")
           ? ["state-map.md#accessibility"]
           : [],
+        flow: covered.includes("flow") ? ["spec.md#flow"] : [],
+        assets: covered.includes("assets") ? ["mcp-raw/get_design_context#assets"] : [],
       },
     };
   }
@@ -332,24 +478,51 @@ function createEntryFilesService(deps) {
   }
 
   function ensureEntryFiles(item) {
-    ensureFileWithDefault(
-      item.paths.meta,
-      `${JSON.stringify(
-        {
-          fileKey: item.fileKey,
-          nodeId: item.nodeId,
-          scope: item.scope,
-          source: item.source,
-          syncedAt: item.syncedAt,
-          completeness: normalizeCompletenessList(item.completeness),
-        },
-        null,
-        2
-      )}\n`
+    const metaAbs = resolveMaybeAbsolutePath(item.paths.meta);
+    const rawAbs = resolveMaybeAbsolutePath(item.paths.raw);
+    const completeness = normalizeCompletenessList(item.completeness);
+
+    // Always keep meta/raw in sync with latest ensure/upsert, even if files already exist.
+    upsertJsonFile(
+      metaAbs,
+      () => ({
+        fileKey: item.fileKey,
+        nodeId: item.nodeId,
+        scope: item.scope,
+        source: item.source,
+        syncedAt: item.syncedAt,
+        completeness,
+      }),
+      (next) => {
+        next.fileKey = item.fileKey;
+        next.nodeId = item.nodeId;
+        next.scope = item.scope;
+        next.source = item.source;
+        next.syncedAt = item.syncedAt;
+        next.completeness = completeness;
+        return next;
+      }
     );
+
     ensureFileWithDefault(item.paths.spec, buildDefaultSpecContent(item));
     ensureFileWithDefault(item.paths.stateMap, buildDefaultStateMapContent(item));
-    ensureFileWithDefault(item.paths.raw, buildDefaultRawContent(item));
+    if (!fs.existsSync(rawAbs)) {
+      ensureFileWithDefault(item.paths.raw, buildDefaultRawContent(item));
+    }
+    upsertJsonFile(
+      rawAbs,
+      () => JSON.parse(buildDefaultRawContent(item)),
+      (next) => {
+        next.source = item.source;
+        next.fileKey = item.fileKey;
+        next.nodeId = item.nodeId;
+        next.scope = item.scope;
+        next.syncedAt = item.syncedAt;
+        next.completeness = completeness;
+        next.coverageSummary = buildCoverageSummary(completeness);
+        return next;
+      }
+    );
     hydrateMcpEntryFilesIfNeeded(item);
   }
 

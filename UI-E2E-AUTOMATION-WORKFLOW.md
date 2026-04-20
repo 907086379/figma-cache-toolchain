@@ -79,6 +79,11 @@ npm i -D figma-cache-toolchain@latest
 npx figma-cache cursor init
 ```
 
+补充（多根工作区本地联调推荐）：
+
+- 若你的 `vue-demo/package.json` 已配置 `figma-cache-toolchain` 为本地源码依赖（例如 `file:../figma-cache-v1`），则不需要安装 `@latest`。
+- 本地源码联调时建议用 `npm install` 刷新依赖即可；仅在需要“验证发布包”时再用 `npm pack`/tgz 或 `@latest`。
+
 ### 3.2 准备批量文件（推荐）
 
 目标项目根目录创建：`figma-e2e-batch.json`
@@ -167,6 +172,18 @@ npm run figma:workflow:fresh:start
 - 输出下一步提示：开新 Agent 会话重新生成组件
 
 Agent 重生成完成后，在目标项目执行：
+
+```bash
+npm run figma:workflow:fresh:verify
+```
+
+如果你已经手动删除了 `target` 文件（例如 `AudioSettingsPanel.vue`），可以直接从等待/验收开始：
+
+```bash
+npm run figma:workflow:fresh:wait-verify
+```
+
+或在你确认组件已生成后直接跑：
 
 ```bash
 npm run figma:workflow:fresh:verify

@@ -10,6 +10,7 @@ const { buildBudgetReport } = require("./js/budget-cli");
 const { createIndexStore } = require("./js/index-store");
 const { copyCursorBootstrap } = require("./js/cursor-bootstrap-cli");
 const { createEntryFilesService } = require("./js/entry-files");
+const { getRelatedCacheKeysFromIndex } = require("./js/related-cache-keys");
 const { backfillFromIterations } = require("./js/backfill-cli");
 const { createUpsertService } = require("./js/upsert-core");
 const { createProjectConfigService } = require("./js/project-config");
@@ -179,6 +180,8 @@ const entryFilesService = createEntryFilesService({
   normalizeCompletenessList,
   completenessAllDimensions: COMPLETENESS_ALL_DIMENSIONS,
   runPostEnsureHook,
+  getRelatedCacheKeys: (cacheKey) =>
+    getRelatedCacheKeysFromIndex(cacheKey, normalizeIndexShape(readIndex())),
 });
 const { ensureEntryFilesAndHook } = entryFilesService;
 
@@ -403,6 +406,12 @@ function run() {
     console.log(
       `  ${ex} ensure <figmaUrl> [--source=manual] [--completeness=a,b] [--allow-skeleton-with-figma-mcp]  (default completeness=${defaultCompletenessText})`,
     );
+    console.log(
+      `  ${ex} enrich <figmaUrl> [--allow-skeleton-with-figma-mcp]  # re-run entry hydrate from index + mcp-raw (no index upsert)`,
+    );
+    console.log(
+      `  ${ex} enrich --all [--allow-skeleton-with-figma-mcp]  # same for every figma-mcp item in index.json`,
+    );
     console.log(`  ${ex} init`);
     console.log(`  ${ex} config`);
     console.log(
@@ -490,6 +499,108 @@ function run() {
 
   if (cmd === "ensure") {
     runUpsertLikeCommand("ensure", args, true);
+    return;
+  }
+
+  if (cmd === "enrich") {
+    const allowSkeletonWithFigmaMcp = args.includes("--allow-skeleton-with-figma-mcp");
+    const enrichAll = args.includes("--all");
+    const validateDeps = {
+      fs,
+      path,
+      resolveMaybeAbsolutePath,
+      safeReadJson,
+      normalizeSlash,
+      normalizeCompletenessList,
+      completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
+    };
+    if (enrichAll) {
+      const index = normalizeIndexShape(readIndex());
+      const failures = [];
+      const successes = [];
+      Object.entries(index.items || {}).forEach(([cacheKey, item]) => {
+        if (!item || item.source !== "figma-mcp") {
+          return;
+        }
+        const completeness = normalizeCompletenessList(item.completeness);
+        const mcpErrors = validateMcpRawEvidence(
+          cacheKey,
+          item,
+          completeness,
+          { allowSkeletonWithFigmaMcp },
+          validateDeps,
+        );
+        if (mcpErrors.length) {
+          failures.push({ cacheKey, errors: mcpErrors });
+          return;
+        }
+        ensureEntryFilesAndHook(cacheKey, item);
+        successes.push(cacheKey);
+      });
+      console.log(
+        JSON.stringify(
+          {
+            ok: failures.length === 0,
+            enriched: successes.length,
+            cacheKeys: successes,
+            failures,
+          },
+          null,
+          2,
+        ),
+      );
+      if (failures.length) {
+        process.exit(2);
+      }
+      return;
+    }
+    const positional = args.filter(
+      (x) =>
+        x !== "--all" &&
+        !x.startsWith("--allow-skeleton-with-figma-mcp") &&
+        !x.startsWith("--"),
+    );
+    const url = positional[0];
+    if (!url) {
+      console.error(
+        "Usage: figma-cache enrich <figmaUrl> [--allow-skeleton-with-figma-mcp]\n       figma-cache enrich --all [--allow-skeleton-with-figma-mcp]",
+      );
+      process.exit(1);
+    }
+    const normalized = normalizeFigmaUrl(url);
+    const index = normalizeIndexShape(readIndex());
+    const item = getItem(index, normalized.cacheKey);
+    if (!item) {
+      console.error(`enrich failed: cacheKey not found in index: ${normalized.cacheKey}`);
+      process.exit(2);
+    }
+    if (item.source === "figma-mcp") {
+      const completeness = normalizeCompletenessList(item.completeness);
+      const mcpErrors = validateMcpRawEvidence(
+        normalized.cacheKey,
+        item,
+        completeness,
+        { allowSkeletonWithFigmaMcp },
+        validateDeps,
+      );
+      if (mcpErrors.length) {
+        console.error("enrich failed: source=figma-mcp but MCP raw evidence is incomplete");
+        mcpErrors.forEach((err) => console.error(`- ${err}`));
+        process.exit(2);
+      }
+    }
+    ensureEntryFilesAndHook(normalized.cacheKey, item);
+    console.log(
+      JSON.stringify(
+        {
+          cacheKey: normalized.cacheKey,
+          enriched: true,
+          paths: item.paths,
+        },
+        null,
+        2,
+      ),
+    );
     return;
   }
 

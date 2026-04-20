@@ -8,10 +8,75 @@ function isTodoLike(value) {
 function hasTruncatedMarker(value) {
   const text = String(value || "");
   return (
+    /\btruncated\b/i.test(text) ||
     /omitted\s+for\s+brevity/i.test(text) ||
     /省略|截断|已截短|摘要版/i.test(text) ||
+    /证据占位|占位证据|evidence\s+placeholder|used\s+as\s+evidence/i.test(text) ||
+    /omitted\s+here/i.test(text) ||
+    /for\s+brevity\s+in\s+this\s+workspace/i.test(text) ||
+    /\(\s*truncated\s*\)/i.test(text) ||
     /\.\.\.\s*(MCP|get_design_context|response|回包|原始响应)/i.test(text)
   );
+}
+
+function validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps) {
+  const { normalizeSlash } = deps;
+  const minBytesRaw = Number(process.env.FIGMA_MCP_MIN_DESIGN_CONTEXT_BYTES);
+  const minBytes = Number.isFinite(minBytesRaw) && minBytesRaw >= 0 ? Math.floor(minBytesRaw) : 1500;
+  const bytes = Buffer.byteLength(String(content || ""), "utf8");
+
+  // Hard-fail if it's too small to be a real get_design_context payload.
+  // This catches "placeholder evidence" where only a wrapper/div exists.
+  if (minBytes > 0 && bytes < minBytes) {
+    errors.push(
+      `${cacheKey}: get_design_context 原始文件疑似过小（${bytes}B < ${minBytes}B），禁止省略/占位，必须直存完整回包 ${normalizeSlash(
+        fileAbs
+      )}`
+    );
+    return;
+  }
+
+  // Additional structural sanity checks for common placeholder patterns.
+  const text = String(content || "");
+  const nodeIdMatch = cacheKey.split("#")[1] || "";
+  if (nodeIdMatch && !text.includes(`data-node-id="${nodeIdMatch}"`)) {
+    errors.push(
+      `${cacheKey}: get_design_context 原始文件缺少目标 data-node-id="${nodeIdMatch}"（疑似非对应节点回包或被截断） ${normalizeSlash(
+        fileAbs
+      )}`
+    );
+  }
+
+  const minNodeRefsRaw = Number(process.env.FIGMA_MCP_MIN_DESIGN_CONTEXT_NODE_REFS);
+  const minNodeRefs =
+    Number.isFinite(minNodeRefsRaw) && minNodeRefsRaw >= 0 ? Math.floor(minNodeRefsRaw) : 6;
+  if (minNodeRefs > 0) {
+    const nodeRefs = (text.match(/data-node-id="/g) || []).length;
+    if (nodeRefs < minNodeRefs) {
+      errors.push(
+        `${cacheKey}: get_design_context data-node-id 引用数量过少（${nodeRefs} < ${minNodeRefs}），疑似省略/骨架模式 ${normalizeSlash(
+          fileAbs
+        )}`
+      );
+    }
+  }
+
+  const requireAssetsFlag = String(process.env.FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS || "")
+    .trim()
+    .toLowerCase();
+  const requireAssets = requireAssetsFlag ? requireAssetsFlag !== "0" && requireAssetsFlag !== "false" : true;
+  if (requireAssets) {
+    const hasAssetConstants =
+      /\bconst\s+img[A-Za-z0-9_]*\s*=\s*"https:\/\/www\.figma\.com\/api\/mcp\/asset\//.test(text);
+    const hasImgUsage = /<img\b/i.test(text);
+    if (!hasAssetConstants || !hasImgUsage) {
+      errors.push(
+        `${cacheKey}: get_design_context 缺少资产常量或 <img> 使用（疑似被省略/占位）。如节点确实无资产，可设 FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS=0 关闭该检查 ${normalizeSlash(
+          fileAbs
+        )}`
+      );
+    }
+  }
 }
 
 function getManifestFilesMap(cacheKey, item, errors, deps) {
@@ -63,6 +128,9 @@ function getManifestFilesMap(cacheKey, item, errors, deps) {
         )}`
       );
       return;
+    }
+    if (toolName === "get_design_context") {
+      validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps);
     }
     if (fileHashes && fileSizes) {
       const expectedHash = String(fileHashes[toolName] || "").trim().toLowerCase();
