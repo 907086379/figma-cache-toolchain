@@ -1,0 +1,8 @@
+{
+  "uiBatch": {
+    "targetRoot": "./src/pages/main/components",
+    "targetTemplate": "{targetRoot}/{component}/index.vue",
+    "mountPage": "src/pages/main/index.vue"
+  }
+}
+

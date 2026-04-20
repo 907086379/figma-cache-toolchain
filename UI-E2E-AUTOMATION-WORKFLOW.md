@@ -91,9 +91,9 @@ npx figma-cache cursor init
 ```json
 [
   {
-    "fileKey": "53hw0wDvgOzH14DXSsnEmE",
-    "nodeId": "9277-28772",
-    "target": "./src/pages/main/components/AudioSettingsPanel/index.vue",
+    "fileKey": "<fileKey>",
+    "nodeId": "<nodeId>",
+    "target": "./src/pages/main/components/<YourComponent>/index.vue",
     "minScore": 85,
     "maxWarnings": 10,
     "maxDiffs": 10
@@ -102,6 +102,43 @@ npx figma-cache cursor init
 ```
 
 `target` 为**相对于目标项目根目录**的路径（与 `figma-e2e-batch.json` 所在目录一致），便于克隆到任意盘符。
+
+补充：推荐用工具链脚本维护 batch（统一命名规则，减少手工编辑）：
+
+```bash
+# 在目标项目根目录执行
+# 1) 添加/更新一个 case（默认会用严格 PascalCase 命名组件目录）
+node ./node_modules/figma-to-code-pipeline/scripts/batch-add.cjs "<figma-url|cacheKey|node-id>" --fileKey=<fileKey>
+
+# 2) 也可以显式指定语义化组件名（必须严格 PascalCase）
+node ./node_modules/figma-to-code-pipeline/scripts/batch-add.cjs "<...>" --fileKey=<fileKey> --component=AudioSettingsPanel
+
+# 2.1) 若你的项目目录结构不是 ./src/pages/main/components，可指定 target-root（或用环境变量）
+node ./node_modules/figma-to-code-pipeline/scripts/batch-add.cjs "<...>" --fileKey=<fileKey> --target-root=./src/ui/components
+# 或：设置环境变量 FIGMA_UI_BATCH_TARGET_ROOT=./src/ui/components
+
+# 2.2) 工程化配置（推荐）：在项目根目录新增 figma-ui-batch.config.json
+# {
+#   "uiBatch": {
+#     "targetRoot": "./src/ui/components",
+#     "targetTemplate": "{targetRoot}/{component}/index.vue",
+#     "mountPage": "src/pages/main/index.vue"
+#   }
+# }
+# 这样后续 batch-add 只需要写 fileKey/node-id，不必重复 target-root。
+#
+# 你也可以直接从工具链模板复制：
+# - node_modules/figma-to-code-pipeline/cursor-bootstrap/examples/figma-ui-batch.config.template.json
+
+# 3) 从 batch 移除一个 case
+node ./node_modules/figma-to-code-pipeline/scripts/batch-remove.cjs "<figma-url|cacheKey|node-id>" --fileKey=<fileKey>
+
+# 4) （可选但推荐）把 batch 的目标组件自动挂载到页面，便于运行时看效果
+node ./node_modules/figma-to-code-pipeline/scripts/ui-mount-batch.cjs --batch=./figma-e2e-batch.json
+```
+
+默认命名规则（严格 PascalCase 且可追溯 node-id）：
+- `node-id=9277-28654` → `FigmaNode9277x28654`
 
 ---
 
@@ -177,7 +214,7 @@ Agent 重生成完成后，在目标项目执行：
 npm run fc:workflow:fresh:verify
 ```
 
-如果你已经手动删除了 `target` 文件（例如 `AudioSettingsPanel/index.vue`），可以直接从等待/验收开始：
+如果你已经手动删除了 `target` 文件（例如 `src/pages/main/components/<YourComponent>/index.vue`），可以直接从等待/验收开始：
 
 ```bash
 npm run fc:workflow:fresh:wait-verify
@@ -201,7 +238,7 @@ npm run fc:workflow:fresh:verify
 ### 模式 A：单节点快速验证
 
 ```bash
-npm run fc:ui:e2e:cross -- --target-project=../vue-demo --fileKey=53hw0wDvgOzH14DXSsnEmE --nodeId=9277-28772 --target=./src/pages/main/components/AudioSettingsPanel/index.vue --auto-ensure-on-miss --fix-loop=2 --emit-agent-task-on-fail
+npm run fc:ui:e2e:cross -- --target-project=../vue-demo --fileKey=<fileKey> --nodeId=<nodeId> --target=./src/pages/main/components/<YourComponent>/index.vue --auto-ensure-on-miss --fix-loop=2 --emit-agent-task-on-fail
 ```
 
 ### 模式 B：批量回归（推荐日常）
