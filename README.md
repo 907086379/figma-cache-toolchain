@@ -48,6 +48,8 @@ npm run verify:docs && npm test
 
 提交前：`README.md`、`docs/*.md`、`figma-cache/docs/*.md` 保持 **UTF-8 无 BOM**；改 CLI 请同步 **`figma-cache/docs/README.md`** / **`CHANGELOG.md`**。
 
+发布 npm 前：若根目录存在本地 **`README.owner.md`**（`.gitignore` 已忽略），部分 npm 会按 `README*` 规则将其打入包；可临时**改名**（避免以 `README` 开头）或移出根目录后再执行 `npm publish`。
+
 ---
 
 ## 文档入口
