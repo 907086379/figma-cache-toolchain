@@ -12,6 +12,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2 } = require("./ui-batch-v2.cjs");
 const {
   mergeIconMetricsFromRawPaths,
@@ -110,15 +111,20 @@ function resolveTargetAbs(rawTarget) {
   return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.join(ROOT, trimmed);
 }
 
-function parseArgs(argv) {
+function parseArgs() {
+  const { values } = parseCli(process.argv, {
+    strings: ["batch", "max-box"],
+    booleanFlags: [],
+  });
   const out = {
-    batch: path.join(ROOT, "figma-e2e-batch.json"),
+    batch: (values.batch || "").trim() || path.join(ROOT, "figma-e2e-batch.json"),
     maxBox: 24,
   };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--max-box=")) out.maxBox = Number(arg.split("=").slice(1).join("=").trim());
-  });
+  const mb = (values["max-box"] || "").trim();
+  if (mb) {
+    const n = Number(mb);
+    if (Number.isFinite(n)) out.maxBox = n;
+  }
   return out;
 }
 
@@ -132,7 +138,7 @@ function rawAbsPathsForCase(cacheKey, relatedCacheKeys) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   const batchAbs = path.isAbsolute(args.batch) ? args.batch : path.join(ROOT, args.batch);
   if (!fs.existsSync(batchAbs)) {
     console.error(`[generate-icon-insets-from-batch] batch not found: ${batchAbs}`);

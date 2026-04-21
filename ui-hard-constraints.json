@@ -1,6 +1,6 @@
 {
   "$schema": "https://example.invalid/ui-hard-constraints.schema.json",
-  "description": "Toolchain default UI hard constraints. Copied to target projects via `figma-cache cursor init` and enforced by `forbidden-markup-check.cjs`.",
+  "description": "Toolchain default UI hard constraints. Copied to target projects via `figma-cache cursor init` and enforced by `forbidden-markup-check.cjs`. forbiddenPatterns[].vueSlice: `template` = 仅匹配 Vue SFC 的 <template> 片段（避免误伤 <script> 合法代码）；缺省为 `all` 表示整文件。",
   "global": {
     "forbiddenTags": ["button", "p", "ul", "li"],
     "forbiddenAttrPrefixes": ["aria-"],
@@ -8,9 +8,16 @@
     "forbiddenPatterns": [
       { "id": "custom scrollbar wrapper: scrollbar-hint", "pattern": "\\bscrollbar-hint\\b" },
       { "id": "custom scrollbar wrapper: hide-native-scrollbar", "pattern": "\\bhide-native-scrollbar\\b" },
-      { "id": "no CSS font-variation-settings (Figma MCP noise)", "pattern": "font-variation-settings" },
-      { "id": "no inline fontVariationSettings (React-style MCP dump)", "pattern": "fontVariationSettings\\s*:" }
+      {
+        "id": "no CSS font-variation-settings (Figma MCP noise)",
+        "pattern": "font-variation-settings",
+        "vueSlice": "template"
+      },
+      {
+        "id": "no inline fontVariationSettings (React-style MCP dump)",
+        "pattern": "fontVariationSettings\\s*:",
+        "vueSlice": "template"
+      }
     ]
   }
 }
-

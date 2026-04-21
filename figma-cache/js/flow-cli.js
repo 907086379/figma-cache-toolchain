@@ -1,4 +1,10 @@
 /* eslint-disable no-console */
+const path = require("path");
+const { parseCli } = require(path.join(__dirname, "..", "..", "scripts", "cli-args.cjs"));
+
+function parseFlowRest(rest, spec) {
+  return parseCli(["node", "figma-cache", ...rest], spec);
+}
 
 function slugifyFlowId(name) {
   const raw = String(name || "")
@@ -107,12 +113,13 @@ function handleFlowCommand(args, deps) {
   }
 
   if (sub === "init") {
-    const idArg = rest.find((x) => x.startsWith("--id="));
-    const titleArg = rest.find((x) => x.startsWith("--title="));
-    const descArg = rest.find((x) => x.startsWith("--description="));
-    const flowId = idArg ? idArg.split("=")[1] : slugifyFlowId("flow");
-    const title = titleArg ? titleArg.split("=").slice(1).join("=") : flowId;
-    const description = descArg ? descArg.split("=").slice(1).join("=") : "";
+    const { values } = parseFlowRest(rest, {
+      strings: ["id", "title", "description"],
+      booleanFlags: [],
+    });
+    const flowId = (values.id || "").trim() || slugifyFlowId("flow");
+    const title = (values.title || "").trim() || flowId;
+    const description = (values.description || "").trim();
     const index = normalizeIndexShape(readIndex());
     ensureFlow(index, flowId, { title, description }, normalizeIndexShape);
     writeIndex(index);
@@ -126,10 +133,13 @@ function handleFlowCommand(args, deps) {
       console.error("Missing --flow=<flowId> or env FIGMA_DEFAULT_FLOW");
       process.exit(1);
     }
-    const input = rest.find((x) => !x.startsWith("--"));
-    const ensureArg = rest.includes("--ensure");
-    const sourceArg = rest.find((x) => x.startsWith("--source="));
-    const source = sourceArg ? sourceArg.split("=")[1] : "manual";
+    const { values, flags, positionals } = parseFlowRest(rest, {
+      strings: ["source"],
+      booleanFlags: ["ensure"],
+    });
+    const input = positionals[0];
+    const ensureArg = Boolean(flags.ensure);
+    const source = (values.source || "").trim() || "manual";
     const { completeness } = parseCompletenessFromArgs(rest);
     const index = normalizeIndexShape(readIndex());
     const resolved = resolveCacheKeyOrUrl(input, { normalizeFigmaUrl });
@@ -172,9 +182,11 @@ function handleFlowCommand(args, deps) {
 
   if (sub === "link") {
     const flowId = resolveFlowIdFromArgs(rest);
-    const typeArg = rest.find((x) => x.startsWith("--type="));
-    const noteArg = rest.find((x) => x.startsWith("--note="));
-    const urls = rest.filter((x) => !x.startsWith("--"));
+    const { values, positionals } = parseFlowRest(rest, {
+      strings: ["type", "note"],
+      booleanFlags: [],
+    });
+    const urls = positionals;
     if (!flowId) {
       console.error("Missing --flow=<flowId> or env FIGMA_DEFAULT_FLOW");
       process.exit(1);
@@ -183,8 +195,8 @@ function handleFlowCommand(args, deps) {
       console.error("Missing <fromUrl> <toUrl>");
       process.exit(1);
     }
-    const type = typeArg ? typeArg.split("=")[1] : "related";
-    const note = noteArg ? noteArg.split("=").slice(1).join("=") : "";
+    const type = (values.type || "").trim() || "related";
+    const note = (values.note || "").trim();
     const from = resolveCacheKeyOrUrl(urls[0], { normalizeFigmaUrl }).cacheKey;
     const to = resolveCacheKeyOrUrl(urls[1], { normalizeFigmaUrl }).cacheKey;
     const index = normalizeIndexShape(readIndex());
@@ -202,9 +214,12 @@ function handleFlowCommand(args, deps) {
 
   if (sub === "chain") {
     const flowId = resolveFlowIdFromArgs(rest);
-    const typeArg = rest.find((x) => x.startsWith("--type="));
-    const type = typeArg ? typeArg.split("=")[1] : "related";
-    const urls = rest.filter((x) => !x.startsWith("--"));
+    const { values, positionals } = parseFlowRest(rest, {
+      strings: ["type"],
+      booleanFlags: [],
+    });
+    const type = (values.type || "").trim() || "related";
+    const urls = positionals;
     if (!flowId) {
       console.error("Missing --flow=<flowId> or env FIGMA_DEFAULT_FLOW");
       process.exit(1);

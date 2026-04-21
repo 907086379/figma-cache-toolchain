@@ -5,6 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2 } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -32,111 +33,81 @@ function resolveTargetInProject(rawTarget, targetProject) {
   return path.join(targetProject, trimmed);
 }
 
-function parseArgs(argv) {
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "cross-project-e2e.js", ...(argvSlice || [])];
+  const { values, flags, positionals } = parseCli(synthetic, {
+    strings: [
+      "target-project",
+      "cacheKey",
+      "fileKey",
+      "nodeId",
+      "target",
+      "min-score",
+      "max-warnings",
+      "max-diffs",
+      "profile",
+      "completeness",
+      "batch-file",
+      "fix-loop",
+      "agent-task-path",
+    ],
+    booleanFlags: [
+      "keep-package",
+      "no-auto-bootstrap-contract",
+      "auto-ensure-on-miss",
+      "allow-skeleton-with-figma-mcp",
+      "emit-agent-task-on-fail",
+      "allow-skipped-code-level-comparison",
+    ],
+  });
+
   const options = {
-    targetProject: "",
-    cacheKey: "",
-    fileKey: "",
-    nodeId: "",
-    target: "",
+    targetProject: (values["target-project"] || "").trim(),
+    cacheKey: (values.cacheKey || "").trim(),
+    fileKey: (values.fileKey || "").trim(),
+    nodeId: (values.nodeId || "").trim(),
+    target: (values.target || "").trim(),
     minScore: 90,
     maxWarnings: 0,
     maxDiffs: 2,
-    profile: "",
-    keepPackage: false,
-    autoBootstrapContract: true,
-    autoEnsureOnMiss: false,
-    allowSkeletonWithFigmaMcp: false,
-    // Default to "best effort" evidence to support 1:1 audits out-of-the-box.
-    completeness: "layout,text,tokens,assets,interactions,states,accessibility",
-    batchFile: "",
+    profile: (values.profile || "").trim(),
+    keepPackage: Boolean(flags["keep-package"]),
+    autoBootstrapContract: !flags["no-auto-bootstrap-contract"],
+    autoEnsureOnMiss: Boolean(flags["auto-ensure-on-miss"]),
+    allowSkeletonWithFigmaMcp: Boolean(flags["allow-skeleton-with-figma-mcp"]),
+    completeness:
+      (values.completeness || "").trim() || "layout,text,tokens,assets,interactions,states,accessibility",
+    batchFile: (values["batch-file"] || "").trim(),
     fixLoop: 0,
-    emitAgentTaskOnFail: false,
-    agentTaskPath: "",
-    allowSkippedCodeLevelComparison: false,
+    emitAgentTaskOnFail: Boolean(flags["emit-agent-task-on-fail"]),
+    agentTaskPath: (values["agent-task-path"] || "").trim(),
+    allowSkippedCodeLevelComparison: Boolean(flags["allow-skipped-code-level-comparison"]),
   };
 
-  argv.forEach((arg) => {
-    if (arg.startsWith("--target-project=")) {
-      options.targetProject = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--cacheKey=")) {
-      options.cacheKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--fileKey=")) {
-      options.fileKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--nodeId=")) {
-      options.nodeId = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--target=")) {
-      options.target = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--min-score=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.minScore = Number.isFinite(n) ? n : options.minScore;
-      return;
-    }
-    if (arg.startsWith("--max-warnings=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.maxWarnings = Number.isFinite(n) ? n : options.maxWarnings;
-      return;
-    }
-    if (arg.startsWith("--max-diffs=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.maxDiffs = Number.isFinite(n) ? n : options.maxDiffs;
-      return;
-    }
-    if (arg.startsWith("--profile=")) {
-      options.profile = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg === "--keep-package") {
-      options.keepPackage = true;
-      return;
-    }
-    if (arg === "--no-auto-bootstrap-contract") {
-      options.autoBootstrapContract = false;
-      return;
-    }
-    if (arg === "--auto-ensure-on-miss") {
-      options.autoEnsureOnMiss = true;
-      return;
-    }
-    if (arg === "--allow-skeleton-with-figma-mcp") {
-      options.allowSkeletonWithFigmaMcp = true;
-      return;
-    }
-    if (arg.startsWith("--completeness=")) {
-      options.completeness = arg.split("=").slice(1).join("=").trim() || options.completeness;
-      return;
-    }
-    if (arg.startsWith("--batch-file=")) {
-      options.batchFile = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--fix-loop=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.fixLoop = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
-      return;
-    }
-    if (arg === "--emit-agent-task-on-fail") {
-      options.emitAgentTaskOnFail = true;
-      return;
-    }
-    if (arg.startsWith("--agent-task-path=")) {
-      options.agentTaskPath = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg === "--allow-skipped-code-level-comparison") {
-      options.allowSkippedCodeLevelComparison = true;
-    }
-  });
+  const ms = (values["min-score"] || "").trim();
+  if (ms) {
+    const n = Number(ms);
+    if (Number.isFinite(n)) options.minScore = n;
+  }
+  const mw = (values["max-warnings"] || "").trim();
+  if (mw) {
+    const n = Number(mw);
+    if (Number.isFinite(n)) options.maxWarnings = n;
+  }
+  const md = (values["max-diffs"] || "").trim();
+  if (md) {
+    const n = Number(md);
+    if (Number.isFinite(n)) options.maxDiffs = n;
+  }
+  const fl = (values["fix-loop"] || "").trim();
+  if (fl) {
+    const n = Number(fl);
+    options.fixLoop = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
+  }
+
+  if (!options.targetProject && positionals[0]) {
+    options.targetProject = String(positionals[0]).trim();
+  }
 
   return options;
 }

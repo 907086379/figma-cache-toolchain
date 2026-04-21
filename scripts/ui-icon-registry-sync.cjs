@@ -21,23 +21,23 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 
 const ROOT = process.cwd();
 const CACHE_DIR_INPUT = process.env.FIGMA_CACHE_DIR || "figma-cache";
 const FAIL_EXIT_CODE = 2;
 
-function parseArgs(argv) {
-  const out = {
-    src: "src",
-    out: "src/ui/iconRegistry.generated.ts",
-    registry: "ui-icon-registry.json",
-  };
-  argv.forEach((arg) => {
-    if (arg.startsWith("--src=")) out.src = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--out=")) out.out = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--registry=")) out.registry = arg.split("=").slice(1).join("=").trim();
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "ui-icon-registry-sync.cjs", ...(argvSlice || [])];
+  const { values } = parseCli(synthetic, {
+    strings: ["src", "out", "registry"],
+    booleanFlags: [],
   });
-  return out;
+  return {
+    src: (values.src || "").trim() || "src",
+    out: (values.out || "").trim() || "src/ui/iconRegistry.generated.ts",
+    registry: (values.registry || "").trim() || "ui-icon-registry.json",
+  };
 }
 
 function normalizeNodeId(input) {

@@ -10,6 +10,10 @@
  * 约束：
  * - 破坏性升级：不兼容旧格式
  * - 所有路径（target.entry / mount.mountPage）默认按“项目根目录相对路径”理解
+ *
+ * cases[].constraints（可选）：
+ * - 由 `forbidden-markup-check.cjs` 读取，与 `ui-hard-constraints` 基线及 policy 编译结果做 **并集**（追加禁止项），
+ *   不会用空字段“擦掉”基线；`forbiddenPatterns[].vueSlice: "template"` 时仅作用于 Vue `<template>`。
  */
 
 const fs = require("fs");

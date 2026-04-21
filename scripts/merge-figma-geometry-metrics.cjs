@@ -17,6 +17,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { mergeLayoutMetricsFromGeometry } = require("../figma-cache/js/raw-derivatives");
 
 function safeReadJson(absPath) {
@@ -32,17 +33,19 @@ function writeJson(absPath, value) {
   fs.writeFileSync(absPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function parseArgs(argv) {
-  const out = { raw: "", geometry: "" };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--raw=")) out.raw = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--geometry=")) out.geometry = arg.split("=").slice(1).join("=").trim();
+function parseArgs() {
+  const { values } = parseCli(process.argv, {
+    strings: ["raw", "geometry"],
+    booleanFlags: [],
   });
-  return out;
+  return {
+    raw: (values.raw || "").trim(),
+    geometry: (values.geometry || "").trim(),
+  };
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   const rawAbs = path.isAbsolute(args.raw) ? args.raw : path.join(process.cwd(), args.raw);
   const geoAbs = path.isAbsolute(args.geometry) ? args.geometry : path.join(process.cwd(), args.geometry);
   if (!args.raw || !args.geometry) {

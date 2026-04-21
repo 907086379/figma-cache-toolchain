@@ -14,22 +14,26 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 
-function parseArgs(argv) {
-  const out = {
-    raw: [],
-    out: "",
-    maxBox: 24,
-    cacheKey: "",
-    outDir: "",
-  };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--raw=")) out.raw.push(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--out=")) out.out = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--out-dir=")) out.outDir = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--cacheKey=")) out.cacheKey = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--max-box=")) out.maxBox = Number(arg.split("=").slice(1).join("=").trim());
+function parseArgs() {
+  const { values, arrays } = parseCli(process.argv, {
+    strings: ["out", "out-dir", "cacheKey", "max-box"],
+    arrays: ["raw"],
+    booleanFlags: [],
   });
+  const out = {
+    raw: [...(arrays.raw || [])],
+    out: (values.out || "").trim(),
+    maxBox: 24,
+    cacheKey: (values.cacheKey || "").trim(),
+    outDir: (values["out-dir"] || "").trim(),
+  };
+  const mb = (values["max-box"] || "").trim();
+  if (mb) {
+    const n = Number(mb);
+    if (Number.isFinite(n)) out.maxBox = n;
+  }
   return out;
 }
 
@@ -221,7 +225,7 @@ function legacySanitizedCacheKeyFileName(cacheKey) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   if (!args.raw.length || (!args.out && !(args.outDir && args.cacheKey))) {
     console.error(
       "Usage: node scripts/generate-icon-insets.cjs --raw=<raw.json> [--raw=<raw2.json> ...] (--out=<out.ts> | --out-dir=<dir> --cacheKey=<cacheKey>) [--max-box=24]"

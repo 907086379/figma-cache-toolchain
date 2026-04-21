@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { getUiProfileConfig } = require("./ui-profile");
 
 const ROOT = process.cwd();
@@ -25,26 +26,17 @@ function readJsonOrNull(absPath) {
   }
 }
 
-function parseArgs(argv) {
-  const options = {
-    preflightReport: "",
-    auditReport: "",
-    output: DEFAULT_OUTPUT_PATH,
-  };
-  argv.forEach((arg) => {
-    if (arg.startsWith("--preflight-report=")) {
-      options.preflightReport = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--audit-report=")) {
-      options.auditReport = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--output=")) {
-      options.output = arg.split("=").slice(1).join("=").trim() || DEFAULT_OUTPUT_PATH;
-    }
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "ui-report-aggregate.js", ...(argvSlice || [])];
+  const { values } = parseCli(synthetic, {
+    strings: ["preflight-report", "audit-report", "output"],
+    booleanFlags: [],
   });
-  return options;
+  return {
+    preflightReport: (values["preflight-report"] || "").trim(),
+    auditReport: (values["audit-report"] || "").trim(),
+    output: (values.output || "").trim() || DEFAULT_OUTPUT_PATH,
+  };
 }
 
 function ensureParentDir(absPath) {

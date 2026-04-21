@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { getUiProfileConfig } = require("./ui-profile");
 
 const ROOT = process.cwd();
@@ -52,37 +53,20 @@ function ensureParentDir(absPath) {
   fs.mkdirSync(path.dirname(absPath), { recursive: true });
 }
 
-function parseArgs(argv) {
-  const options = {
-    cacheKey: "",
-    contractPath: DEFAULT_CONTRACT_PATH,
-    reportPath: DEFAULT_REPORT_PATH,
-    allowWarn: false,
-    hasUnknownArgs: false,
-    unknownArgs: [],
-  };
-
-  argv.forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) {
-      options.cacheKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--contract=")) {
-      options.contractPath = arg.split("=").slice(1).join("=").trim() || DEFAULT_CONTRACT_PATH;
-      return;
-    }
-    if (arg.startsWith("--report=")) {
-      options.reportPath = arg.split("=").slice(1).join("=").trim() || DEFAULT_REPORT_PATH;
-      return;
-    }
-    if (arg === "--allow-warn") {
-      options.allowWarn = true;
-      return;
-    }
-    options.hasUnknownArgs = true;
-    options.unknownArgs.push(arg);
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "ui-preflight.js", ...(argvSlice || [])];
+  const { values, flags, unknown, positionals } = parseCli(synthetic, {
+    strings: ["cacheKey", "contract", "report"],
+    booleanFlags: ["allow-warn"],
   });
-
+  const options = {
+    cacheKey: (values.cacheKey || "").trim(),
+    contractPath: (values.contract || "").trim() || DEFAULT_CONTRACT_PATH,
+    reportPath: (values.report || "").trim() || DEFAULT_REPORT_PATH,
+    allowWarn: Boolean(flags["allow-warn"]),
+    hasUnknownArgs: unknown.length > 0 || positionals.length > 0,
+    unknownArgs: [...unknown, ...positionals],
+  };
   return options;
 }
 

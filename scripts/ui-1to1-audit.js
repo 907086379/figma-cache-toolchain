@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { normalizeUiFacts, normalizeHexColor } = require("../figma-cache/js/ui-facts-normalizer");
 const { getUiProfileConfig } = require("./ui-profile");
 
@@ -61,56 +62,44 @@ function readTextOrEmpty(absPath) {
   }
 }
 
-function parseArgs(argv) {
-  const options = {
-    cacheKey: "",
-    targetPath: "",
-    mode: DEFAULT_MODE, // web-strict | html-partial
-    contractPath: DEFAULT_CONTRACT_PATH,
-    reportPath: DEFAULT_REPORT_PATH,
-    minScore: DEFAULT_MIN_SCORE,
-    recipesDir: DEFAULT_RECIPES_DIR,
-    filterRemoteFigmaAssets: parseBoolEnv(process.env.FIGMA_UI_FILTER_REMOTE_FIGMA_ASSETS, true),
-    unknownArgs: [],
-  };
-
-  argv.forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) {
-      options.cacheKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--target=")) {
-      options.targetPath = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--mode=")) {
-      options.mode = arg.split("=").slice(1).join("=").trim() || DEFAULT_MODE;
-      return;
-    }
-    if (arg.startsWith("--contract=")) {
-      options.contractPath = arg.split("=").slice(1).join("=").trim() || DEFAULT_CONTRACT_PATH;
-      return;
-    }
-    if (arg.startsWith("--report=")) {
-      options.reportPath = arg.split("=").slice(1).join("=").trim() || DEFAULT_REPORT_PATH;
-      return;
-    }
-    if (arg.startsWith("--min-score=")) {
-      const parsed = Number(arg.split("=").slice(1).join("=").trim());
-      options.minScore = Number.isFinite(parsed) ? parsed : DEFAULT_MIN_SCORE;
-      return;
-    }
-    if (arg.startsWith("--recipes-dir=")) {
-      options.recipesDir = arg.split("=").slice(1).join("=").trim() || DEFAULT_RECIPES_DIR;
-      return;
-    }
-    if (arg === "--no-filter-remote-figma-assets") {
-      options.filterRemoteFigmaAssets = false;
-      return;
-    }
-    options.unknownArgs.push(arg);
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "ui-1to1-audit.js", ...(argvSlice || [])];
+  const { values, flags, positionals, unknown } = parseCli(synthetic, {
+    strings: ["cacheKey", "target", "mode", "contract", "report", "recipes-dir", "min-score"],
+    booleanFlags: ["no-filter-remote-figma-assets"],
   });
-
+  const options = {
+    cacheKey: (values.cacheKey || "").trim(),
+    targetPath: (values.target || "").trim(),
+    mode: (values.mode || "").trim() || DEFAULT_MODE,
+    contractPath: (values.contract || "").trim() || DEFAULT_CONTRACT_PATH,
+    reportPath: (values.report || "").trim() || DEFAULT_REPORT_PATH,
+    minScore: DEFAULT_MIN_SCORE,
+    recipesDir: (values["recipes-dir"] || "").trim() || DEFAULT_RECIPES_DIR,
+    filterRemoteFigmaAssets: parseBoolEnv(process.env.FIGMA_UI_FILTER_REMOTE_FIGMA_ASSETS, true),
+    unknownArgs: [...unknown],
+  };
+  if (flags["no-filter-remote-figma-assets"]) {
+    options.filterRemoteFigmaAssets = false;
+  }
+  const ms = (values["min-score"] || "").trim();
+  if (ms) {
+    const parsed = Number(ms);
+    if (Number.isFinite(parsed)) options.minScore = parsed;
+  }
+  const pos = positionals.filter(Boolean);
+  if (!options.cacheKey) {
+    const ck = pos.find((p) => p.includes("#") && !/\.(vue|tsx|jsx|html)$/i.test(p));
+    if (ck) options.cacheKey = ck.trim();
+  }
+  if (!options.targetPath) {
+    const t = pos.find((p) => /\.(vue|tsx|jsx|html)$/i.test(p));
+    if (t) options.targetPath = t.trim();
+  }
+  pos.forEach((p) => {
+    if (p === options.cacheKey || p === options.targetPath) return;
+    options.unknownArgs.push(p);
+  });
   return options;
 }
 

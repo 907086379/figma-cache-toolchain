@@ -2,55 +2,27 @@
 /* eslint-disable no-console */
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("../cli-args.cjs");
 
 const ROOT = process.cwd();
 const INDEX_PATH = path.join(ROOT, "figma-cache", "index.json");
 const DEFAULT_OUT_DIR = path.join(ROOT, "figma-cache", "mobile-specs");
 
-function parseArgs(argv) {
-  const result = {
-    url: "",
-    platform: "all",
-    outDir: DEFAULT_OUT_DIR,
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "generate-mobile-spec.js", ...(argvSlice || [])];
+  const { values } = parseCli(synthetic, {
+    strings: ["url", "platform", "out-dir"],
+    booleanFlags: [],
+  });
+  const url = (values.url || "").trim();
+  const platform = ((values.platform || "").trim() || "all").toLowerCase();
+  const od = (values["out-dir"] || "").trim();
+  const outDir = od ? (path.isAbsolute(od) ? od : path.join(ROOT, od)) : DEFAULT_OUT_DIR;
+  return {
+    url,
+    platform,
+    outDir,
   };
-
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (token === "--url") {
-      result.url = String(argv[i + 1] || "").trim();
-      i += 1;
-      continue;
-    }
-    if (token.startsWith("--url=")) {
-      result.url = token.slice("--url=".length).trim();
-      continue;
-    }
-    if (token === "--platform") {
-      result.platform = String(argv[i + 1] || "all").trim().toLowerCase();
-      i += 1;
-      continue;
-    }
-    if (token.startsWith("--platform=")) {
-      result.platform = token.slice("--platform=".length).trim().toLowerCase();
-      continue;
-    }
-    if (token === "--out-dir") {
-      const value = String(argv[i + 1] || "").trim();
-      if (value) {
-        result.outDir = path.isAbsolute(value) ? value : path.join(ROOT, value);
-      }
-      i += 1;
-      continue;
-    }
-    if (token.startsWith("--out-dir=")) {
-      const value = token.slice("--out-dir=".length).trim();
-      if (value) {
-        result.outDir = path.isAbsolute(value) ? value : path.join(ROOT, value);
-      }
-    }
-  }
-
-  return result;
 }
 
 function readJson(absPath) {

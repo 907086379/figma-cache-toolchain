@@ -16,6 +16,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2, writeBatchV2, normalizeNodeIdToBatch } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -91,39 +92,52 @@ function tryParseNodeIdOnly(input) {
   return undefined;
 }
 
-function parseArgs(argv) {
+function parseArgs() {
+  const { values, positionals } = parseCli(process.argv, {
+    strings: [
+      "batch",
+      "fileKey",
+      "nodeId",
+      "target",
+      "target-root",
+      "component",
+      "kind",
+      "minScore",
+      "maxWarnings",
+      "maxDiffs",
+    ],
+    booleanFlags: [],
+  });
   const out = {
-    input: "",
-    batch: DEFAULT_BATCH,
-    fileKey: "",
+    input: (positionals[0] || "").trim(),
+    batch: (values.batch || "").trim() || DEFAULT_BATCH,
+    fileKey: (values.fileKey || "").trim(),
     nodeId: "",
-    target: "",
-    targetRoot: "",
-    component: "",
-    kind: "vue",
+    target: (values.target || "").trim(),
+    targetRoot: (values["target-root"] || "").trim(),
+    component: (values.component || "").trim(),
+    kind: (values.kind || "").trim() || "vue",
     minScore: 85,
     maxWarnings: 10,
     maxDiffs: 10,
   };
-
-  const raw = argv.slice(2);
-  out.input = raw[0] ? String(raw[0]).trim() : "";
-
-  raw.slice(1).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--fileKey=")) out.fileKey = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--nodeId="))
-      out.nodeId = normalizeNodeIdForBatch(arg.split("=").slice(1).join("=").trim());
-    else if (arg.startsWith("--target=")) out.target = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--target-root=")) out.targetRoot = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--component=")) out.component = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--kind=")) out.kind = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--minScore=")) out.minScore = Number(arg.split("=").slice(1).join("=").trim());
-    else if (arg.startsWith("--maxWarnings="))
-      out.maxWarnings = Number(arg.split("=").slice(1).join("=").trim());
-    else if (arg.startsWith("--maxDiffs=")) out.maxDiffs = Number(arg.split("=").slice(1).join("=").trim());
-  });
-
+  const nid = (values.nodeId || "").trim();
+  if (nid) out.nodeId = normalizeNodeIdForBatch(nid);
+  const ms = (values.minScore || "").trim();
+  if (ms) {
+    const n = Number(ms);
+    if (Number.isFinite(n)) out.minScore = n;
+  }
+  const mw = (values.maxWarnings || "").trim();
+  if (mw) {
+    const n = Number(mw);
+    if (Number.isFinite(n)) out.maxWarnings = n;
+  }
+  const md = (values.maxDiffs || "").trim();
+  if (md) {
+    const n = Number(md);
+    if (Number.isFinite(n)) out.maxDiffs = n;
+  }
   return out;
 }
 
@@ -220,7 +234,7 @@ function upsertCaseV2(batchPayload, nextCase) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   if (!args.input) {
     console.error(
       [

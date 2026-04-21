@@ -29,6 +29,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2 } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -68,41 +69,51 @@ function normalizeCacheKey(input) {
   return `${parts[0]}#${normalizeNodeId(parts[1])}`;
 }
 
-function parseArgs(argv) {
+function parseArgs() {
+  const { values, flags } = parseCli(process.argv, {
+    strings: [
+      "batch",
+      "flow",
+      "min-shared",
+      "min-shared-instance",
+      "min-jaccard",
+      "suggest-min-shared",
+      "suggest-min-shared-instance",
+      "suggest-min-jaccard",
+      "suggest-out",
+      "promote-min-jaccard",
+      "promote-min-shared-instance",
+    ],
+    booleanFlags: ["dry-run"],
+  });
   const out = {
-    batch: path.join(ROOT, "figma-e2e-batch.json"),
-    flowId: process.env.FIGMA_DEFAULT_FLOW || "auto-related",
+    batch: (values.batch || "").trim() || path.join(ROOT, "figma-e2e-batch.json"),
+    flowId: (values.flow || "").trim() || process.env.FIGMA_DEFAULT_FLOW || "auto-related",
     minShared: 2,
     minSharedInstance: 1,
     minJaccard: 0.2,
     suggestMinShared: 1,
     suggestMinSharedInstance: 1,
     suggestMinJaccard: 0.12,
-    suggestOut: process.env.FIGMA_UI_AUTOLINK_SUGGEST_OUT || DEFAULT_SUGGEST_OUT,
+    suggestOut: (values["suggest-out"] || "").trim() || process.env.FIGMA_UI_AUTOLINK_SUGGEST_OUT || DEFAULT_SUGGEST_OUT,
     promoteMinJaccard: 0.55,
     promoteMinSharedInstance: 2,
-    dryRun: false,
+    dryRun: Boolean(flags["dry-run"]),
   };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--flow=")) out.flowId = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--min-shared=")) out.minShared = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--min-shared-instance="))
-      out.minSharedInstance = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--min-jaccard=")) out.minJaccard = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--suggest-min-shared="))
-      out.suggestMinShared = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--suggest-min-shared-instance="))
-      out.suggestMinSharedInstance = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--suggest-min-jaccard="))
-      out.suggestMinJaccard = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--suggest-out=")) out.suggestOut = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--promote-min-jaccard="))
-      out.promoteMinJaccard = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg.startsWith("--promote-min-shared-instance="))
-      out.promoteMinSharedInstance = Number(arg.split("=").slice(1).join("=").trim());
-    if (arg === "--dry-run") out.dryRun = true;
-  });
+  const n = (k, def) => {
+    const v = (values[k] || "").trim();
+    if (!v) return def;
+    const x = Number(v);
+    return Number.isFinite(x) ? x : def;
+  };
+  out.minShared = n("min-shared", out.minShared);
+  out.minSharedInstance = n("min-shared-instance", out.minSharedInstance);
+  out.minJaccard = n("min-jaccard", out.minJaccard);
+  out.suggestMinShared = n("suggest-min-shared", out.suggestMinShared);
+  out.suggestMinSharedInstance = n("suggest-min-shared-instance", out.suggestMinSharedInstance);
+  out.suggestMinJaccard = n("suggest-min-jaccard", out.suggestMinJaccard);
+  out.promoteMinJaccard = n("promote-min-jaccard", out.promoteMinJaccard);
+  out.promoteMinSharedInstance = n("promote-min-shared-instance", out.promoteMinSharedInstance);
   return out;
 }
 
@@ -176,7 +187,7 @@ function addEdge(flow, from, to, type, note) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   const batchAbs = path.isAbsolute(args.batch) ? args.batch : path.join(ROOT, args.batch);
   const index = safeReadJson(INDEX_ABS);
   if (!index || !index.items) {

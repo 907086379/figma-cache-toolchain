@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 
 const ROOT = process.cwd();
 const CACHE_DIR_INPUT = process.env.FIGMA_CACHE_DIR || "figma-cache";
@@ -28,15 +29,23 @@ function readJsonOrNull(absPath) {
   }
 }
 
-function parseArgs(argv) {
-  const out = {
-    cacheKey: "",
-    target: "",
-  };
-  argv.forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) out.cacheKey = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--target=")) out.target = arg.split("=").slice(1).join("=").trim();
+function parseArgs() {
+  const { values, positionals } = parseCli(process.argv, {
+    strings: ["cacheKey", "target"],
+    booleanFlags: [],
   });
+  const out = {
+    cacheKey: (values.cacheKey || "").trim(),
+    target: (values.target || "").trim(),
+  };
+  if (!out.cacheKey) {
+    const ck = positionals.find((p) => p.includes("#") && !/\.(vue|tsx|jsx|html)$/i.test(p));
+    if (ck) out.cacheKey = ck.trim();
+  }
+  if (!out.target) {
+    const t = positionals.find((p) => /\.(vue|tsx|jsx|html)$/i.test(p));
+    if (t) out.target = t.trim();
+  }
   return out;
 }
 
@@ -153,7 +162,7 @@ function rewriteTemplate(content) {
 }
 
 function main() {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs();
   const registryAbs = findRegistryAbs();
   if (!registryAbs) {
     process.exit(0);

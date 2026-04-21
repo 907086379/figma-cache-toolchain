@@ -5,6 +5,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { parseCli } = require("./cli-args.cjs");
 
 const ROOT = process.cwd();
 const SCRIPT_DIR = __dirname;
@@ -42,75 +43,55 @@ function readJsonOrNull(absPath) {
   }
 }
 
-function parseArgs(argv) {
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "ui-auto-acceptance.js", ...(argvSlice || [])];
+  const { values, flags, positionals } = parseCli(synthetic, {
+    strings: [
+      "cacheKey",
+      "target",
+      "target-kind",
+      "audit-mode",
+      "contract",
+      "min-score",
+      "max-warnings",
+      "max-diffs",
+      "preflight-report",
+      "audit-report",
+      "summary-report",
+    ],
+    booleanFlags: ["reports-only"],
+  });
   const options = {
-    cacheKey: "",
-    target: "",
-    targetKind: "",
-    auditMode: "",
-    contract: "",
+    cacheKey: (values.cacheKey || "").trim(),
+    target: (values.target || "").trim(),
+    targetKind: (values["target-kind"] || "").trim(),
+    auditMode: (values["audit-mode"] || "").trim(),
+    contract: (values.contract || "").trim(),
     minScore: 90,
     maxWarnings: 0,
     maxDiffs: 2,
-    reportsOnly: false,
-    preflightReport: "",
-    auditReport: "",
-    summaryReport: "",
+    reportsOnly: Boolean(flags["reports-only"]),
+    preflightReport: (values["preflight-report"] || "").trim(),
+    auditReport: (values["audit-report"] || "").trim(),
+    summaryReport: (values["summary-report"] || "").trim(),
   };
-
-  argv.forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) {
-      options.cacheKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--target=")) {
-      options.target = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--target-kind=")) {
-      options.targetKind = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--audit-mode=")) {
-      options.auditMode = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--contract=")) {
-      options.contract = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--min-score=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.minScore = Number.isFinite(n) ? n : options.minScore;
-      return;
-    }
-    if (arg.startsWith("--max-warnings=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.maxWarnings = Number.isFinite(n) ? n : options.maxWarnings;
-      return;
-    }
-    if (arg.startsWith("--max-diffs=")) {
-      const n = Number(arg.split("=").slice(1).join("=").trim());
-      options.maxDiffs = Number.isFinite(n) ? n : options.maxDiffs;
-      return;
-    }
-    if (arg.startsWith("--preflight-report=")) {
-      options.preflightReport = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--audit-report=")) {
-      options.auditReport = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg.startsWith("--summary-report=")) {
-      options.summaryReport = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg === "--reports-only") {
-      options.reportsOnly = true;
-    }
-  });
-
+  const n = (k, def) => {
+    const v = (values[k] || "").trim();
+    if (!v) return def;
+    const x = Number(v);
+    return Number.isFinite(x) ? x : def;
+  };
+  options.minScore = n("min-score", options.minScore);
+  options.maxWarnings = n("max-warnings", options.maxWarnings);
+  options.maxDiffs = n("max-diffs", options.maxDiffs);
+  if (!options.cacheKey) {
+    const ck = positionals.find((p) => p.includes("#") && !/\.(vue|tsx|jsx|html)$/i.test(p));
+    if (ck) options.cacheKey = ck.trim();
+  }
+  if (!options.target) {
+    const t = positionals.find((p) => /\.(vue|tsx|jsx|html)$/i.test(p));
+    if (t) options.target = t.trim();
+  }
   return options;
 }
 

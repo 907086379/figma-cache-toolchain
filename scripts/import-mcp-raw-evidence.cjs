@@ -23,6 +23,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { sanitizeDesignContextTextForCache } = require("./sanitize-design-context-for-cache.cjs");
 
 function sha256Utf8(text) {
@@ -49,26 +50,21 @@ function normalizeNodeId(input) {
   return value.includes(":") ? value : value.replace(/-/g, ":");
 }
 
-function parseArgs(argv) {
-  const out = {
-    cacheKey: "",
-    designContext: "",
-    metadata: "",
-    variableDefs: "",
-  };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) out.cacheKey = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--design-context="))
-      out.designContext = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--metadata=")) out.metadata = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--variable-defs="))
-      out.variableDefs = arg.split("=").slice(1).join("=").trim();
+function parseArgs() {
+  const { values } = parseCli(process.argv, {
+    strings: ["cacheKey", "design-context", "metadata", "variable-defs"],
+    booleanFlags: [],
   });
-  return out;
+  return {
+    cacheKey: (values.cacheKey || "").trim(),
+    designContext: (values["design-context"] || "").trim(),
+    metadata: (values.metadata || "").trim(),
+    variableDefs: (values["variable-defs"] || "").trim(),
+  };
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   if (!args.cacheKey || !args.designContext || !args.metadata || !args.variableDefs) {
     console.error(
       "Usage: node scripts/import-mcp-raw-evidence.cjs --cacheKey=<fileKey#nodeId> --design-context=<txt> --metadata=<txt> --variable-defs=<json>"

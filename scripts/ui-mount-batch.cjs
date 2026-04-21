@@ -19,6 +19,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2 } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -47,22 +48,25 @@ function resolveAbs(maybeRel) {
   return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.join(ROOT, trimmed);
 }
 
-function parseArgs(argv) {
+function parseArgs() {
+  const { values, flags } = parseCli(process.argv, {
+    strings: ["batch", "case", "mount-page"],
+    booleanFlags: ["all", "create-stub-on-miss", "no-create-stub-on-miss"],
+  });
   const out = {
-    batch: DEFAULT_BATCH,
+    batch: (values.batch || "").trim() || DEFAULT_BATCH,
     caseIndex: 0,
-    all: false,
-    mountPage: "",
+    all: Boolean(flags.all),
+    mountPage: (values["mount-page"] || "").trim(),
     createStubOnMiss: true,
   };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--case=")) out.caseIndex = Number(arg.split("=").slice(1).join("=").trim());
-    else if (arg.startsWith("--mount-page=")) out.mountPage = arg.split("=").slice(1).join("=").trim();
-    else if (arg === "--all") out.all = true;
-    else if (arg === "--no-create-stub-on-miss") out.createStubOnMiss = false;
-    else if (arg === "--create-stub-on-miss") out.createStubOnMiss = true;
-  });
+  const ci = (values.case || "").trim();
+  if (ci) {
+    const n = Number(ci);
+    if (Number.isFinite(n) && n >= 0) out.caseIndex = Math.floor(n);
+  }
+  if (flags["no-create-stub-on-miss"]) out.createStubOnMiss = false;
+  if (flags["create-stub-on-miss"]) out.createStubOnMiss = true;
   if (!Number.isFinite(out.caseIndex) || out.caseIndex < 0) out.caseIndex = 0;
   out.caseIndex = Math.floor(out.caseIndex);
   return out;
@@ -370,7 +374,7 @@ function applyHtmlInjectMount(mountPageAbs, mounts) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   const batchAbs = resolveAbs(args.batch);
   if (!batchAbs || !fs.existsSync(batchAbs)) {
     console.error(`[ui-mount-batch] batch not found: ${batchAbs || args.batch}`);

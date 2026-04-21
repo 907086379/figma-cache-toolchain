@@ -14,6 +14,7 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { sanitizeDesignContextTextForCache } = require("./sanitize-design-context-for-cache.cjs");
 
 function sha256Utf8(text) {
@@ -24,11 +25,12 @@ function sizeUtf8(text) {
   return Buffer.byteLength(String(text || ""), "utf8");
 }
 
-function parseArgs(argv) {
-  let root = process.cwd();
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--root=")) root = arg.split("=").slice(1).join("=").trim() || root;
+function parseArgs() {
+  const { values } = parseCli(process.argv, {
+    strings: ["root"],
+    booleanFlags: [],
   });
+  const root = (values.root || "").trim() || process.cwd();
   return { root: path.resolve(root) };
 }
 
@@ -51,7 +53,7 @@ function collectDesignContextFiles(dir, out) {
 }
 
 function main() {
-  const { root } = parseArgs(process.argv);
+  const { root } = parseArgs();
   const targets = [];
   collectDesignContextFiles(root, targets);
   let changed = 0;

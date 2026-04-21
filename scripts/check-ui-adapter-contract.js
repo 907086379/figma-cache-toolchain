@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { buildContractCheckReport } = require("../figma-cache/js/contract-check-cli");
 
 const ROOT = process.cwd();
@@ -40,27 +41,20 @@ function readTextOrEmpty(absPath) {
   }
 }
 
-function parseArgs(argv) {
-  const options = {
-    cacheKey: "",
-    warnUnmappedTokens: false,
-    warnUnmappedStates: false,
-  };
-
-  argv.forEach((arg) => {
-    if (arg.startsWith("--cacheKey=")) {
-      options.cacheKey = arg.split("=").slice(1).join("=").trim();
-      return;
-    }
-    if (arg === "--warn-unmapped-tokens") {
-      options.warnUnmappedTokens = true;
-      return;
-    }
-    if (arg === "--warn-unmapped-states") {
-      options.warnUnmappedStates = true;
-    }
+function parseArgs(argvSlice) {
+  const synthetic = ["node", "check-ui-adapter-contract.js", ...(argvSlice || [])];
+  const { values, flags, positionals } = parseCli(synthetic, {
+    strings: ["cacheKey"],
+    booleanFlags: ["warn-unmapped-tokens", "warn-unmapped-states"],
   });
-
+  const options = {
+    cacheKey: (values.cacheKey || "").trim(),
+    warnUnmappedTokens: Boolean(flags["warn-unmapped-tokens"]),
+    warnUnmappedStates: Boolean(flags["warn-unmapped-states"]),
+  };
+  if (!options.cacheKey && positionals[0] && String(positionals[0]).includes("#")) {
+    options.cacheKey = String(positionals[0]).trim();
+  }
   return options;
 }
 

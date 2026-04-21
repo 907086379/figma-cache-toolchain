@@ -10,6 +10,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { writeBatchV2 } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -59,16 +60,19 @@ function tryParseNodeIdOnly(input) {
   return undefined;
 }
 
-function parseArgs(argv) {
-  const out = { input: "", batch: DEFAULT_BATCH, fileKey: "", nodeId: "" };
-  const raw = argv.slice(2);
-  out.input = raw[0] ? String(raw[0]).trim() : "";
-  raw.slice(1).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--fileKey=")) out.fileKey = arg.split("=").slice(1).join("=").trim();
-    else if (arg.startsWith("--nodeId="))
-      out.nodeId = normalizeNodeIdForBatch(arg.split("=").slice(1).join("=").trim());
+function parseArgs() {
+  const { values, positionals } = parseCli(process.argv, {
+    strings: ["batch", "fileKey", "nodeId"],
+    booleanFlags: [],
   });
+  const out = {
+    input: (positionals[0] || "").trim(),
+    batch: (values.batch || "").trim() || DEFAULT_BATCH,
+    fileKey: (values.fileKey || "").trim(),
+    nodeId: "",
+  };
+  const nid = (values.nodeId || "").trim();
+  if (nid) out.nodeId = normalizeNodeIdForBatch(nid);
   return out;
 }
 
@@ -81,7 +85,7 @@ function inferFileKeyFromExistingBatch(batchPayload) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   if (!args.input) {
     console.error(
       [

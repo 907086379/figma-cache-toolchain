@@ -20,6 +20,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 
 const ROOT = process.cwd();
 
@@ -50,30 +51,26 @@ function normalizeCacheKey(input) {
   return `${parts[0]}#${normalizeNodeId(parts[1])}`;
 }
 
-function parseArgs(argv) {
-  const out = {
-    suggestions: "",
-    index: path.join(ROOT, "figma-cache", "index.json"),
-    flowId: "",
-    type: "related_confirmed",
-    pairs: [],
-    dryRun: false,
-  };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--suggestions=")) out.suggestions = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--index=")) out.index = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--flow=")) out.flowId = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--type=")) out.type = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--pairs=")) {
-      out.pairs = arg
-        .split("=").slice(1).join("=")
+function parseArgs() {
+  const { values, flags } = parseCli(process.argv, {
+    strings: ["suggestions", "index", "flow", "type", "pairs"],
+    booleanFlags: ["dry-run"],
+  });
+  const pairsRaw = (values.pairs || "").trim();
+  const pairs = pairsRaw
+    ? pairsRaw
         .split(",")
         .map((s) => String(s || "").trim())
-        .filter(Boolean);
-    }
-    if (arg === "--dry-run") out.dryRun = true;
-  });
-  return out;
+        .filter(Boolean)
+    : [];
+  return {
+    suggestions: (values.suggestions || "").trim(),
+    index: (values.index || "").trim() || path.join(ROOT, "figma-cache", "index.json"),
+    flowId: (values.flow || "").trim(),
+    type: (values.type || "").trim() || "related_confirmed",
+    pairs,
+    dryRun: Boolean(flags["dry-run"]),
+  };
 }
 
 function ensureFlow(index, flowId) {
@@ -119,7 +116,7 @@ function addEdge(flow, from, to, type, note) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   if (!args.suggestions || !args.pairs.length) {
     console.error(
       "Usage: node scripts/apply-auto-related-suggestions.cjs --suggestions=<path> --pairs=<from->to,from->to> [--flow=...] [--type=...] [--dry-run]"

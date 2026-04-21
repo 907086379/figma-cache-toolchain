@@ -15,6 +15,7 @@ const { backfillFromIterations } = require("./js/backfill-cli");
 const { createUpsertService } = require("./js/upsert-core");
 const { createProjectConfigService } = require("./js/project-config");
 const { buildContractCheckReport } = require("./js/contract-check-cli");
+const { parseCli } = require(path.join(__dirname, "..", "scripts", "cli-args.cjs"));
 
 const ROOT = process.cwd();
 const NORMALIZATION_VERSION = 1;
@@ -145,10 +146,22 @@ const upsertService = createUpsertService({
 });
 const { normalizeFigmaUrl, previewUpsertByUrl, upsertByUrl } = upsertService;
 
+/**
+ * @param {string[]} tailArgs argv 片段（不含顶层子命令名）
+ * @param {{ strings?: string[], arrays?: string[], booleanFlags?: string[] }} spec
+ */
+function parseTailWithCli(tailArgs, spec) {
+  return parseCli(["node", "figma-cache", ...tailArgs], spec);
+}
+
 function resolveFlowIdFromArgs(rest) {
-  const flowArg = rest.find((x) => x.startsWith("--flow="));
-  if (flowArg) {
-    return flowArg.split("=")[1];
+  const { values } = parseTailWithCli(rest, {
+    strings: ["flow"],
+    booleanFlags: [],
+  });
+  const flow = (values.flow || "").trim();
+  if (flow) {
+    return flow;
   }
   if (DEFAULT_FLOW_ID) {
     return DEFAULT_FLOW_ID;
@@ -186,17 +199,19 @@ const entryFilesService = createEntryFilesService({
 const { ensureEntryFilesAndHook } = entryFilesService;
 
 function parseCompletenessFromArgs(args) {
-  const completenessArg = args.find((x) => x.startsWith("--completeness="));
-  if (!completenessArg) {
+  const { values } = parseTailWithCli(args, {
+    strings: ["completeness"],
+    booleanFlags: [],
+  });
+  const raw = (values.completeness || "").trim();
+  if (!raw) {
     return {
       completeness: [...DEFAULT_COMPLETENESS],
       fromCliArg: false,
     };
   }
   return {
-    completeness: normalizeCompletenessList(
-      completenessArg.split("=").slice(1).join("=").split(","),
-    ),
+    completeness: normalizeCompletenessList(raw.split(",")),
     fromCliArg: true,
   };
 }
@@ -261,13 +276,25 @@ function safeFileSize(absPath) {
 }
 
 function runUpsertLikeCommand(commandName, args, shouldEnsureFiles) {
-  const url = args[0];
-  const sourceArg = args.find((x) => x.startsWith("--source="));
-  const source = sourceArg ? sourceArg.split("=")[1] : "manual";
-  const allowSkeletonWithFigmaMcp = args.includes(
-    "--allow-skeleton-with-figma-mcp",
+  const { values, flags, positionals } = parseTailWithCli(args, {
+    strings: ["source", "completeness"],
+    booleanFlags: ["allow-skeleton-with-figma-mcp"],
+  });
+  const url = positionals[0];
+  if (!url) {
+    console.error(
+      `Usage: figma-cache ${commandName} <figmaUrl> [--source=manual] [--completeness=a,b] [--allow-skeleton-with-figma-mcp]`,
+    );
+    process.exit(1);
+  }
+  const source = (values.source || "").trim() || "manual";
+  const allowSkeletonWithFigmaMcp = Boolean(
+    flags["allow-skeleton-with-figma-mcp"],
   );
-  const { completeness } = parseCompletenessFromArgs(args);
+  const completenessRaw = (values.completeness || "").trim();
+  const completeness = completenessRaw
+    ? normalizeCompletenessList(completenessRaw.split(","))
+    : [...DEFAULT_COMPLETENESS];
 
   const preview = previewUpsertByUrl(url, { source, completeness });
   if (source === "figma-mcp") {
@@ -326,13 +353,21 @@ function runUpsertLikeCommand(commandName, args, shouldEnsureFiles) {
 }
 
 function parseContractCheckArgs(args) {
+  const { values, flags, positionals } = parseTailWithCli(args, {
+    strings: ["cacheKey"],
+    booleanFlags: ["warn-unmapped-tokens", "warn-unmapped-states"],
+  });
+  let cacheKey = (values.cacheKey || "").trim();
+  if (!cacheKey) {
+    const hit = positionals.find((p) => String(p).includes("#"));
+    if (hit) {
+      cacheKey = String(hit).trim();
+    }
+  }
   return {
-    cacheKey: (() => {
-      const item = args.find((x) => x.startsWith("--cacheKey="));
-      return item ? item.split("=").slice(1).join("=").trim() : "";
-    })(),
-    warnUnmappedTokens: args.includes("--warn-unmapped-tokens"),
-    warnUnmappedStates: args.includes("--warn-unmapped-states"),
+    cacheKey,
+    warnUnmappedTokens: Boolean(flags["warn-unmapped-tokens"]),
+    warnUnmappedStates: Boolean(flags["warn-unmapped-states"]),
   };
 }
 
@@ -446,8 +481,12 @@ function run() {
       );
       process.exit(1);
     }
-    const hasOverwrite = args.includes("--overwrite");
-    const hasForce = args.includes("--force");
+    const { flags } = parseTailWithCli(args, {
+      strings: [],
+      booleanFlags: ["overwrite", "force"],
+    });
+    const hasOverwrite = Boolean(flags.overwrite);
+    const hasForce = Boolean(flags.force);
     if (hasOverwrite && hasForce) {
       console.error("Do not use --overwrite and --force together. Choose one mode.");
       process.exit(1);
@@ -467,14 +506,30 @@ function run() {
   }
 
   if (cmd === "normalize") {
-    const url = args[0];
+    const { positionals } = parseTailWithCli(args, {
+      strings: [],
+      booleanFlags: [],
+    });
+    const url = positionals[0];
+    if (!url) {
+      console.error("Usage: figma-cache normalize <figmaUrl>");
+      process.exit(1);
+    }
     const normalized = normalizeFigmaUrl(url);
     console.log(JSON.stringify(normalized, null, 2));
     return;
   }
 
   if (cmd === "get") {
-    const url = args[0];
+    const { positionals } = parseTailWithCli(args, {
+      strings: [],
+      booleanFlags: [],
+    });
+    const url = positionals[0];
+    if (!url) {
+      console.error("Usage: figma-cache get <figmaUrl>");
+      process.exit(1);
+    }
     const normalized = normalizeFigmaUrl(url);
     const index = readIndex();
     const item = getItem(index, normalized.cacheKey);
@@ -503,8 +558,14 @@ function run() {
   }
 
   if (cmd === "enrich") {
-    const allowSkeletonWithFigmaMcp = args.includes("--allow-skeleton-with-figma-mcp");
-    const enrichAll = args.includes("--all");
+    const { flags, positionals } = parseTailWithCli(args, {
+      strings: [],
+      booleanFlags: ["allow-skeleton-with-figma-mcp", "all"],
+    });
+    const allowSkeletonWithFigmaMcp = Boolean(
+      flags["allow-skeleton-with-figma-mcp"],
+    );
+    const enrichAll = Boolean(flags.all);
     const validateDeps = {
       fs,
       path,
@@ -554,13 +615,7 @@ function run() {
       }
       return;
     }
-    const positional = args.filter(
-      (x) =>
-        x !== "--all" &&
-        !x.startsWith("--allow-skeleton-with-figma-mcp") &&
-        !x.startsWith("--"),
-    );
-    const url = positional[0];
+    const url = positionals[0];
     if (!url) {
       console.error(
         "Usage: figma-cache enrich <figmaUrl> [--allow-skeleton-with-figma-mcp]\n       figma-cache enrich --all [--allow-skeleton-with-figma-mcp]",
@@ -631,8 +686,14 @@ function run() {
   }
 
   if (cmd === "stale") {
-    const daysArg = args.find((x) => x.startsWith("--days="));
-    const days = daysArg ? Number(daysArg.split("=")[1]) : DEFAULT_STALE_DAYS;
+    const { values } = parseTailWithCli(args, {
+      strings: ["days"],
+      booleanFlags: [],
+    });
+    const daysRaw = (values.days || "").trim();
+    const parsed = daysRaw ? Number(daysRaw) : DEFAULT_STALE_DAYS;
+    const days =
+      Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_DAYS;
     printStale(days);
     return;
   }
@@ -650,13 +711,13 @@ function run() {
   }
 
   if (cmd === "budget") {
-    const mcpOnly = args.includes("--mcp-only");
-    const cacheKeyArg = args.find((x) => x.startsWith("--cacheKey="));
-    const limitArg = args.find((x) => x.startsWith("--limit="));
-    const cacheKey = cacheKeyArg
-      ? cacheKeyArg.split("=").slice(1).join("=")
-      : "";
-    const limit = limitArg ? limitArg.split("=")[1] : "";
+    const { values, flags } = parseTailWithCli(args, {
+      strings: ["cacheKey", "limit"],
+      booleanFlags: ["mcp-only"],
+    });
+    const mcpOnly = Boolean(flags["mcp-only"]);
+    const cacheKey = (values.cacheKey || "").trim();
+    const limit = (values.limit || "").trim();
     const report = buildBudgetReport(
       { mcpOnly, cacheKey, limit },
       {

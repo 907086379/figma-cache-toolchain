@@ -23,6 +23,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { parseCli } = require("./cli-args.cjs");
 const { readBatchV2 } = require("./ui-batch-v2.cjs");
 
 const ROOT = process.cwd();
@@ -57,20 +58,23 @@ function copyDirIfExists(srcDir, dstDir) {
   return true;
 }
 
-function parseArgs(argv) {
+function parseArgs() {
+  const { values } = parseCli(process.argv, {
+    strings: ["batch", "cache-root", "out-root", "reports-runtime"],
+    booleanFlags: [],
+  });
+  const cacheRoot =
+    (values["cache-root"] || "").trim() || path.join(ROOT, "figma-cache");
   const out = {
-    batch: path.join(ROOT, "figma-e2e-batch.json"),
-    cacheRoot: path.join(ROOT, "figma-cache"),
-    reportsRuntime: path.join(ROOT, "figma-cache", "reports", "runtime"),
+    batch: (values.batch || "").trim() || path.join(ROOT, "figma-e2e-batch.json"),
+    cacheRoot,
+    reportsRuntime:
+      (values["reports-runtime"] || "").trim() || path.join(cacheRoot, "reports", "runtime"),
     outRoot:
+      (values["out-root"] || "").trim() ||
       process.env.FIGMA_UI_ARTIFACTS_ROOT ||
       path.join(ROOT, "figma-cache", "artifacts", "by-target"),
   };
-  argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--batch=")) out.batch = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--cache-root=")) out.cacheRoot = arg.split("=").slice(1).join("=").trim();
-    if (arg.startsWith("--out-root=")) out.outRoot = arg.split("=").slice(1).join("=").trim();
-  });
   return out;
 }
 
@@ -81,7 +85,7 @@ function nodeDirFromCacheKey(cacheRootAbs, cacheKey) {
 }
 
 function main() {
-  const args = parseArgs(process.argv);
+  const args = parseArgs();
   const batchAbs = path.isAbsolute(args.batch) ? args.batch : path.join(ROOT, args.batch);
   const cacheRootAbs = path.isAbsolute(args.cacheRoot) ? args.cacheRoot : path.join(ROOT, args.cacheRoot);
   const reportsRuntimeAbs = path.isAbsolute(args.reportsRuntime) ? args.reportsRuntime : path.join(ROOT, args.reportsRuntime);
