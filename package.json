@@ -44,7 +44,7 @@
         "verify:pack": "node scripts/verify-npm-pack.js",
         "verify:shell": "node scripts/preflight-shell.js --warn",
         "verify:shell:strict": "node scripts/preflight-shell.js --strict",
-        "test:node": "node tests/rules-guard.js && node tests/raw-derivatives.test.js && node tests/related-cache-keys.test.js && node tests/cli-args.test.js && node tests/smoke.js",
+        "test:node": "node tests/rules-guard.js && node tests/raw-derivatives.test.js && node tests/related-cache-keys.test.js && node tests/cli-args.test.js && node tests/daily-guard-integration.test.js && node tests/smoke.js",
         "test": "pnpm -s run verify:static && pnpm -s run test:node",
         "prepack": "node scripts/check-cursor-shadow.js && node scripts/check-doc-encoding.js && node bin/figma-cache.js validate && node scripts/verify-npm-pack.js",
         "pack:verify": "npm run verify:pack",
