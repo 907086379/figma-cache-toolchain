@@ -1,0 +1,36 @@
+# Cursor ignore for figma-to-code-pipeline
+# Strategy: keep figma-cache/files/** and mcp-raw/** searchable for source=figma-mcp evidence chain.
+
+# Dependencies and package artifacts
+node_modules/
+*.tgz
+
+# Build and test outputs
+dist/
+coverage/
+out/
+
+# Logs and temp files
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Project-specific local file
+README.owner.md
+
+# Reproducible runtime reports
+figma-cache/reports/runtime/
+
+# Local tooling residue
+node_modules/.ignored_figma-to-code-pipeline/
+
+# OS noise
+.DS_Store
+Thumbs.db

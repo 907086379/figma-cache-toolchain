@@ -16,6 +16,7 @@ const { createUpsertService } = require("./js/upsert-core");
 const { createProjectConfigService } = require("./js/project-config");
 const { buildContractCheckReport } = require("./js/contract-check-cli");
 const { parseCli } = require(path.join(__dirname, "..", "scripts", "cli-args.cjs"));
+const { createCommandRegistry } = require("./js/commands");
 
 const ROOT = process.cwd();
 const NORMALIZATION_VERSION = 1;
@@ -275,148 +276,65 @@ function safeFileSize(absPath) {
   }
 }
 
-function runUpsertLikeCommand(commandName, args, shouldEnsureFiles) {
-  const { values, flags, positionals } = parseTailWithCli(args, {
-    strings: ["source", "completeness"],
-    booleanFlags: ["allow-skeleton-with-figma-mcp"],
-  });
-  const url = positionals[0];
-  if (!url) {
-    console.error(
-      `Usage: figma-cache ${commandName} <figmaUrl> [--source=manual] [--completeness=a,b] [--allow-skeleton-with-figma-mcp]`,
-    );
-    process.exit(1);
-  }
-  const source = (values.source || "").trim() || "manual";
-  const allowSkeletonWithFigmaMcp = Boolean(
-    flags["allow-skeleton-with-figma-mcp"],
-  );
-  const completenessRaw = (values.completeness || "").trim();
-  const completeness = completenessRaw
-    ? normalizeCompletenessList(completenessRaw.split(","))
-    : [...DEFAULT_COMPLETENESS];
-
-  const preview = previewUpsertByUrl(url, { source, completeness });
-  if (source === "figma-mcp") {
-    const mcpErrors = validateMcpRawEvidence(
-      preview.normalized.cacheKey,
-      preview.item,
-      completeness,
-      { allowSkeletonWithFigmaMcp },
-      {
-        fs,
-        path,
-        resolveMaybeAbsolutePath,
-        safeReadJson,
-        normalizeSlash,
-        normalizeCompletenessList,
-        completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
-      },
-    );
-    if (mcpErrors.length) {
-      console.error(
-        `${commandName} failed: source=figma-mcp but MCP raw evidence is incomplete`,
-      );
-      mcpErrors.forEach((err) => console.error(`- ${err}`));
-      process.exit(2);
-    }
-  }
-
-  const result = upsertByUrl(url, { source, completeness });
-  if (shouldEnsureFiles) {
-    ensureEntryFilesAndHook(result.normalized.cacheKey, result.item);
-    console.log(
-      JSON.stringify(
-        {
-          cacheKey: result.normalized.cacheKey,
-          ensured: true,
-          paths: result.item.paths,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  console.log(
-    JSON.stringify(
-      {
-        cacheKey: result.normalized.cacheKey,
-        scope: result.item.scope,
-        syncedAt: result.item.syncedAt,
-      },
-      null,
-      2,
-    ),
-  );
-}
-
-function parseContractCheckArgs(args) {
-  const { values, flags, positionals } = parseTailWithCli(args, {
-    strings: ["cacheKey"],
-    booleanFlags: ["warn-unmapped-tokens", "warn-unmapped-states"],
-  });
-  let cacheKey = (values.cacheKey || "").trim();
-  if (!cacheKey) {
-    const hit = positionals.find((p) => String(p).includes("#"));
-    if (hit) {
-      cacheKey = String(hit).trim();
-    }
-  }
+function buildMcpValidationDeps() {
   return {
-    cacheKey,
-    warnUnmappedTokens: Boolean(flags["warn-unmapped-tokens"]),
-    warnUnmappedStates: Boolean(flags["warn-unmapped-states"]),
+    fs,
+    path,
+    resolveMaybeAbsolutePath,
+    safeReadJson,
+    normalizeSlash,
+    normalizeCompletenessList,
+    completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
+    loadProjectConfig,
   };
 }
 
-function runContractCheck(args) {
-  const options = parseContractCheckArgs(args);
-  const contractPath = resolveMaybeAbsolutePath(
-    process.env.FIGMA_CACHE_ADAPTER_CONTRACT ||
-      "figma-cache/adapters/ui-adapter.contract.json",
-  );
-
-  const report = buildContractCheckReport(
-    {
-      ...options,
-      contractPath,
-    },
-    {
-      index: readIndex(),
-      contract: safeReadJson(contractPath),
-      readJsonOrNull: safeReadJson,
-      readTextOrEmpty: safeReadText,
-      resolveMaybeAbsolutePath,
-      normalizeSlash,
-    },
-  );
-
-  if (!report.ok) {
-    console.error("contract-check failed:");
-    report.hardErrors.forEach((error) => console.error(`- ${error}`));
-    if (report.warnings.length) {
-      console.error("\nWarnings:");
-      report.warnings.forEach((warning) => console.error(`- ${warning}`));
-    }
-    process.exit(2);
-  }
-
-  console.log(
-    JSON.stringify(
-      {
-        ok: true,
-        contract: normalizeSlash(contractPath),
-        checkedItems: report.checkedItems,
-        checkedCacheKeys: report.checkedCacheKeys,
-        warnings: report.warnings,
-      },
-      null,
-      2,
-    ),
-  );
-}
+const commandRegistry = createCommandRegistry({
+  fs,
+  path,
+  root: ROOT,
+  cacheDir: CACHE_DIR,
+  indexPath: INDEX_PATH,
+  cursorBootstrapDir: CURSOR_BOOTSTRAP_DIR,
+  packageDir: __dirname,
+  iterationsDir: ITERATIONS_DIR,
+  parseTailWithCli,
+  resolveMaybeAbsolutePath,
+  normalizeSlash,
+  normalizeCompletenessList,
+  defaultCompleteness: DEFAULT_COMPLETENESS,
+  completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
+  defaultStaleDays: DEFAULT_STALE_DAYS,
+  defaultFlowId: DEFAULT_FLOW_ID,
+  normalizationVersion: NORMALIZATION_VERSION,
+  readSelfNpmPackageName,
+  normalizeFigmaUrl,
+  previewUpsertByUrl,
+  upsertByUrl,
+  readIndex,
+  writeIndex,
+  buildEmptyIndex,
+  normalizeIndexShape,
+  ensureCacheDir,
+  getItem,
+  ensureEntryFilesAndHook,
+  copyCursorBootstrap,
+  validateMcpRawEvidence,
+  validateIndex,
+  buildBudgetReport,
+  backfillFromIterations,
+  buildContractCheckReport,
+  loadProjectConfig,
+  getProjectConfigPath,
+  parseCompletenessFromArgs,
+  resolveFlowIdFromArgs,
+  handleFlowCommand,
+  printStale,
+  safeReadJson,
+  safeReadText,
+  safeFileSize,
+  buildMcpValidationDeps,
+});
 
 function run() {
   const [, , cmd, ...args] = process.argv;
@@ -473,339 +391,13 @@ function run() {
     process.exit(1);
   }
 
-  if (cmd === "cursor") {
-    const sub = args[0];
-    if (sub !== "init") {
-      console.error(
-        "Usage: figma-cache cursor init [--overwrite] [--force]  # --overwrite replaces existing templates; --force keeps legacy no-overwrite behavior",
-      );
-      process.exit(1);
-    }
-    const { flags } = parseTailWithCli(args, {
-      strings: [],
-      booleanFlags: ["overwrite", "force"],
-    });
-    const hasOverwrite = Boolean(flags.overwrite);
-    const hasForce = Boolean(flags.force);
-    if (hasOverwrite && hasForce) {
-      console.error("Do not use --overwrite and --force together. Choose one mode.");
-      process.exit(1);
-    }
-    const overwrite = hasOverwrite;
-    copyCursorBootstrap({ overwrite, legacyForce: hasForce }, {
-      fs,
-      path,
-      ROOT,
-      CACHE_DIR,
-      CURSOR_BOOTSTRAP_DIR,
-      normalizeSlash,
-      readSelfNpmPackageName,
-      packageDir: __dirname,
-    });
-    return;
+  const handler = commandRegistry.get(cmd);
+  if (!handler) {
+    console.error(`Unknown command: ${cmd}`);
+    process.exit(1);
   }
 
-  if (cmd === "normalize") {
-    const { positionals } = parseTailWithCli(args, {
-      strings: [],
-      booleanFlags: [],
-    });
-    const url = positionals[0];
-    if (!url) {
-      console.error("Usage: figma-cache normalize <figmaUrl>");
-      process.exit(1);
-    }
-    const normalized = normalizeFigmaUrl(url);
-    console.log(JSON.stringify(normalized, null, 2));
-    return;
-  }
-
-  if (cmd === "get") {
-    const { positionals } = parseTailWithCli(args, {
-      strings: [],
-      booleanFlags: [],
-    });
-    const url = positionals[0];
-    if (!url) {
-      console.error("Usage: figma-cache get <figmaUrl>");
-      process.exit(1);
-    }
-    const normalized = normalizeFigmaUrl(url);
-    const index = readIndex();
-    const item = getItem(index, normalized.cacheKey);
-    console.log(
-      JSON.stringify(
-        {
-          found: !!item,
-          cacheKey: normalized.cacheKey,
-          item: item || null,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  if (cmd === "upsert") {
-    runUpsertLikeCommand("upsert", args, false);
-    return;
-  }
-
-  if (cmd === "ensure") {
-    runUpsertLikeCommand("ensure", args, true);
-    return;
-  }
-
-  if (cmd === "enrich") {
-    const { flags, positionals } = parseTailWithCli(args, {
-      strings: [],
-      booleanFlags: ["allow-skeleton-with-figma-mcp", "all"],
-    });
-    const allowSkeletonWithFigmaMcp = Boolean(
-      flags["allow-skeleton-with-figma-mcp"],
-    );
-    const enrichAll = Boolean(flags.all);
-    const validateDeps = {
-      fs,
-      path,
-      resolveMaybeAbsolutePath,
-      safeReadJson,
-      normalizeSlash,
-      normalizeCompletenessList,
-      completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
-    };
-    if (enrichAll) {
-      const index = normalizeIndexShape(readIndex());
-      const failures = [];
-      const successes = [];
-      Object.entries(index.items || {}).forEach(([cacheKey, item]) => {
-        if (!item || item.source !== "figma-mcp") {
-          return;
-        }
-        const completeness = normalizeCompletenessList(item.completeness);
-        const mcpErrors = validateMcpRawEvidence(
-          cacheKey,
-          item,
-          completeness,
-          { allowSkeletonWithFigmaMcp },
-          validateDeps,
-        );
-        if (mcpErrors.length) {
-          failures.push({ cacheKey, errors: mcpErrors });
-          return;
-        }
-        ensureEntryFilesAndHook(cacheKey, item);
-        successes.push(cacheKey);
-      });
-      console.log(
-        JSON.stringify(
-          {
-            ok: failures.length === 0,
-            enriched: successes.length,
-            cacheKeys: successes,
-            failures,
-          },
-          null,
-          2,
-        ),
-      );
-      if (failures.length) {
-        process.exit(2);
-      }
-      return;
-    }
-    const url = positionals[0];
-    if (!url) {
-      console.error(
-        "Usage: figma-cache enrich <figmaUrl> [--allow-skeleton-with-figma-mcp]\n       figma-cache enrich --all [--allow-skeleton-with-figma-mcp]",
-      );
-      process.exit(1);
-    }
-    const normalized = normalizeFigmaUrl(url);
-    const index = normalizeIndexShape(readIndex());
-    const item = getItem(index, normalized.cacheKey);
-    if (!item) {
-      console.error(`enrich failed: cacheKey not found in index: ${normalized.cacheKey}`);
-      process.exit(2);
-    }
-    if (item.source === "figma-mcp") {
-      const completeness = normalizeCompletenessList(item.completeness);
-      const mcpErrors = validateMcpRawEvidence(
-        normalized.cacheKey,
-        item,
-        completeness,
-        { allowSkeletonWithFigmaMcp },
-        validateDeps,
-      );
-      if (mcpErrors.length) {
-        console.error("enrich failed: source=figma-mcp but MCP raw evidence is incomplete");
-        mcpErrors.forEach((err) => console.error(`- ${err}`));
-        process.exit(2);
-      }
-    }
-    ensureEntryFilesAndHook(normalized.cacheKey, item);
-    console.log(
-      JSON.stringify(
-        {
-          cacheKey: normalized.cacheKey,
-          enriched: true,
-          paths: item.paths,
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  if (cmd === "validate") {
-    const index = readIndex();
-    const errors = validateIndex(index, {
-      fs,
-      path,
-      normalizeIndexShape,
-      normalizeCompletenessList,
-      resolveMaybeAbsolutePath,
-      safeReadJson,
-      normalizeSlash,
-      completenessToolRequirements: COMPLETENESS_TOOL_REQUIREMENTS,
-    });
-    if (!errors.length) {
-      console.log("Validation passed.");
-      return;
-    }
-    console.error("Validation failed:");
-    errors.forEach((err) => console.error(`- ${err}`));
-    process.exit(2);
-  }
-
-  if (cmd === "contract-check") {
-    runContractCheck(args);
-    return;
-  }
-
-  if (cmd === "stale") {
-    const { values } = parseTailWithCli(args, {
-      strings: ["days"],
-      booleanFlags: [],
-    });
-    const daysRaw = (values.days || "").trim();
-    const parsed = daysRaw ? Number(daysRaw) : DEFAULT_STALE_DAYS;
-    const days =
-      Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_STALE_DAYS;
-    printStale(days);
-    return;
-  }
-
-  if (cmd === "backfill") {
-    backfillFromIterations(
-      { iterationsDir: ITERATIONS_DIR },
-      {
-        fs,
-        path,
-        upsertByUrl,
-      },
-    );
-    return;
-  }
-
-  if (cmd === "budget") {
-    const { values, flags } = parseTailWithCli(args, {
-      strings: ["cacheKey", "limit"],
-      booleanFlags: ["mcp-only"],
-    });
-    const mcpOnly = Boolean(flags["mcp-only"]);
-    const cacheKey = (values.cacheKey || "").trim();
-    const limit = (values.limit || "").trim();
-    const report = buildBudgetReport(
-      { mcpOnly, cacheKey, limit },
-      {
-        path,
-        normalizeIndexShape,
-        readIndex,
-        resolveMaybeAbsolutePath,
-        safeReadJson,
-        safeFileSize,
-      },
-    );
-    console.log(JSON.stringify(report, null, 2));
-    return;
-  }
-
-  if (cmd === "config") {
-    const cfg = loadProjectConfig();
-    const hooks = cfg && cfg.hooks;
-    console.log(
-      JSON.stringify(
-        {
-          root: normalizeSlash(ROOT),
-          cacheDir: normalizeSlash(CACHE_DIR),
-          indexPath: normalizeSlash(INDEX_PATH),
-          iterationsDir: normalizeSlash(ITERATIONS_DIR),
-          staleDays: DEFAULT_STALE_DAYS,
-          defaultFlowId: DEFAULT_FLOW_ID || null,
-          defaultCompleteness: [...DEFAULT_COMPLETENESS],
-          normalizationVersion: NORMALIZATION_VERSION,
-          projectConfigPath: getProjectConfigPath(),
-          hooks: {
-            postEnsure: !!(hooks && typeof hooks.postEnsure === "function"),
-          },
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  if (cmd === "init") {
-    ensureCacheDir();
-    if (fs.existsSync(INDEX_PATH)) {
-      console.log(
-        JSON.stringify(
-          {
-            created: false,
-            reason: "index_exists",
-            indexPath: normalizeSlash(INDEX_PATH),
-          },
-          null,
-          2,
-        ),
-      );
-      return;
-    }
-    writeIndex(buildEmptyIndex());
-    console.log(
-      JSON.stringify(
-        {
-          created: true,
-          indexPath: normalizeSlash(INDEX_PATH),
-        },
-        null,
-        2,
-      ),
-    );
-    return;
-  }
-
-  if (cmd === "flow") {
-    handleFlowCommand(args, {
-      resolveFlowIdFromArgs,
-      parseCompletenessFromArgs,
-      normalizeIndexShape,
-      readIndex,
-      writeIndex,
-      normalizeFigmaUrl,
-      getItem,
-      upsertByUrl,
-      ensureEntryFilesAndHook,
-    });
-    return;
-  }
-
-  console.error(`Unknown command: ${cmd}`);
-  process.exit(1);
+  handler(args);
 }
 
 run();

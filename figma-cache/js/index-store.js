@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+const path = require("path");
 
 function createIndexStore(options) {
   const {
@@ -57,13 +58,55 @@ function createIndexStore(options) {
     return normalizeIndexShape(JSON.parse(raw));
   }
 
+  function removeFileIfExists(filePath) {
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch {
+      // noop
+    }
+  }
+
   function writeIndex(index) {
+    ensureCacheDir();
     const normalized = normalizeIndexShape(index);
     normalized.version = 1;
     normalized.schemaVersion = SCHEMA_VERSION;
     normalized.normalizationVersion = NORMALIZATION_VERSION;
     normalized.updatedAt = new Date().toISOString();
-    fs.writeFileSync(INDEX_PATH, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
+
+    const payload = `${JSON.stringify(normalized, null, 2)}\n`;
+    const indexDir = path.dirname(INDEX_PATH);
+    const indexBase = path.basename(INDEX_PATH);
+    const tmpPath = path.join(
+      indexDir,
+      `${indexBase}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    );
+
+    fs.writeFileSync(tmpPath, payload, "utf8");
+    try {
+      fs.renameSync(tmpPath, INDEX_PATH);
+      return;
+    } catch (renameError) {
+      const canRetryByReplacing =
+        renameError &&
+        (renameError.code === "EEXIST" ||
+          renameError.code === "EPERM" ||
+          renameError.code === "EACCES");
+      if (!canRetryByReplacing) {
+        removeFileIfExists(tmpPath);
+        throw renameError;
+      }
+    }
+
+    try {
+      removeFileIfExists(INDEX_PATH);
+      fs.renameSync(tmpPath, INDEX_PATH);
+    } catch (replaceError) {
+      removeFileIfExists(tmpPath);
+      throw replaceError;
+    }
   }
 
   function getItem(index, cacheKey) {

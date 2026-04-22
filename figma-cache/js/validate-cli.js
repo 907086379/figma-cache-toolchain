@@ -19,10 +19,180 @@ function hasTruncatedMarker(value) {
   );
 }
 
-function validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps) {
+const DEFAULT_MCP_EVIDENCE_THRESHOLDS = Object.freeze({
+  minDesignContextBytes: 1500,
+  minDesignContextNodeRefs: 6,
+  requireDesignContextAssets: true,
+});
+
+function pickFirstDefined(source, keys) {
+  if (!source || typeof source !== "object") {
+    return undefined;
+  }
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (value === undefined || value === null) {
+      continue;
+    }
+    if (typeof value === "string" && !value.trim()) {
+      continue;
+    }
+    return value;
+  }
+  return undefined;
+}
+
+function toNonNegativeIntOrUndefined(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    return undefined;
+  }
+  return Math.floor(n);
+}
+
+function toBooleanOrUndefined(value) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      return undefined;
+    }
+    return value !== 0;
+  }
+  const lowered = String(value).trim().toLowerCase();
+  if (!lowered) {
+    return undefined;
+  }
+  if (["1", "true", "yes", "on"].includes(lowered)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(lowered)) {
+    return false;
+  }
+  return undefined;
+}
+
+function normalizeEvidenceThresholdOverrides(source) {
+  if (!source || typeof source !== "object") {
+    return {};
+  }
+
+  const minDesignContextBytes = toNonNegativeIntOrUndefined(
+    pickFirstDefined(source, [
+      "minDesignContextBytes",
+      "FIGMA_MCP_MIN_DESIGN_CONTEXT_BYTES",
+    ])
+  );
+  const minDesignContextNodeRefs = toNonNegativeIntOrUndefined(
+    pickFirstDefined(source, [
+      "minDesignContextNodeRefs",
+      "FIGMA_MCP_MIN_DESIGN_CONTEXT_NODE_REFS",
+    ])
+  );
+  const requireDesignContextAssets = toBooleanOrUndefined(
+    pickFirstDefined(source, [
+      "requireDesignContextAssets",
+      "FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS",
+    ])
+  );
+
+  const normalized = {};
+  if (minDesignContextBytes !== undefined) {
+    normalized.minDesignContextBytes = minDesignContextBytes;
+  }
+  if (minDesignContextNodeRefs !== undefined) {
+    normalized.minDesignContextNodeRefs = minDesignContextNodeRefs;
+  }
+  if (requireDesignContextAssets !== undefined) {
+    normalized.requireDesignContextAssets = requireDesignContextAssets;
+  }
+  return normalized;
+}
+
+function readProjectEvidenceValidationConfig(deps) {
+  if (deps.__mcpEvidenceValidationConfig !== undefined) {
+    return deps.__mcpEvidenceValidationConfig;
+  }
+  if (!deps || typeof deps.loadProjectConfig !== "function") {
+    deps.__mcpEvidenceValidationConfig = {};
+    return deps.__mcpEvidenceValidationConfig;
+  }
+
+  let config = {};
+  try {
+    const loaded = deps.loadProjectConfig();
+    config = loaded && typeof loaded === "object" ? loaded : {};
+  } catch {
+    deps.__mcpEvidenceValidationConfig = {};
+    return deps.__mcpEvidenceValidationConfig;
+  }
+
+  const validation =
+    config.validation && typeof config.validation === "object" ? config.validation : {};
+  const candidate = [
+    validation.mcpRawEvidence,
+    validation.mcpRaw,
+    config.mcpRawEvidenceValidation,
+    config.mcpRawEvidence,
+  ].find((entry) => entry && typeof entry === "object");
+
+  if (!candidate) {
+    deps.__mcpEvidenceValidationConfig = {};
+    return deps.__mcpEvidenceValidationConfig;
+  }
+
+  const perCacheKeyRaw =
+    candidate.perCacheKey && typeof candidate.perCacheKey === "object"
+      ? candidate.perCacheKey
+      : {};
+  const perCacheKey = {};
+  Object.entries(perCacheKeyRaw).forEach(([cacheKey, value]) => {
+    const key = String(cacheKey || "").trim();
+    if (!key || !value || typeof value !== "object") {
+      return;
+    }
+    perCacheKey[key] = normalizeEvidenceThresholdOverrides(value);
+  });
+
+  deps.__mcpEvidenceValidationConfig = {
+    global: normalizeEvidenceThresholdOverrides(candidate),
+    perCacheKey,
+  };
+  return deps.__mcpEvidenceValidationConfig;
+}
+
+function resolveMcpEvidenceThresholds(cacheKey, deps) {
+  const thresholds = {
+    ...DEFAULT_MCP_EVIDENCE_THRESHOLDS,
+  };
+
+  const projectOverrides = readProjectEvidenceValidationConfig(deps);
+  if (projectOverrides && projectOverrides.global) {
+    Object.assign(thresholds, projectOverrides.global);
+  }
+
+  Object.assign(thresholds, normalizeEvidenceThresholdOverrides(process.env || {}));
+
+  const perCacheKey =
+    projectOverrides && projectOverrides.perCacheKey
+      ? projectOverrides.perCacheKey[String(cacheKey || "").trim()]
+      : null;
+  if (perCacheKey && typeof perCacheKey === "object") {
+    Object.assign(thresholds, perCacheKey);
+  }
+
+  return thresholds;
+}
+function validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps, thresholds) {
   const { normalizeSlash } = deps;
-  const minBytesRaw = Number(process.env.FIGMA_MCP_MIN_DESIGN_CONTEXT_BYTES);
-  const minBytes = Number.isFinite(minBytesRaw) && minBytesRaw >= 0 ? Math.floor(minBytesRaw) : 1500;
+  const minBytes = thresholds.minDesignContextBytes;
   const bytes = Buffer.byteLength(String(content || ""), "utf8");
 
   // Hard-fail if it's too small to be a real get_design_context payload.
@@ -47,9 +217,7 @@ function validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, de
     );
   }
 
-  const minNodeRefsRaw = Number(process.env.FIGMA_MCP_MIN_DESIGN_CONTEXT_NODE_REFS);
-  const minNodeRefs =
-    Number.isFinite(minNodeRefsRaw) && minNodeRefsRaw >= 0 ? Math.floor(minNodeRefsRaw) : 6;
+  const minNodeRefs = thresholds.minDesignContextNodeRefs;
   if (minNodeRefs > 0) {
     const nodeRefs = (text.match(/data-node-id="/g) || []).length;
     if (nodeRefs < minNodeRefs) {
@@ -61,26 +229,22 @@ function validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, de
     }
   }
 
-  const requireAssetsFlag = String(process.env.FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS || "")
-    .trim()
-    .toLowerCase();
-  const requireAssets = requireAssetsFlag ? requireAssetsFlag !== "0" && requireAssetsFlag !== "false" : true;
-  if (requireAssets) {
+  if (thresholds.requireDesignContextAssets) {
     const hasAssetConstants =
       /\bconst\s+img[A-Za-z0-9_]*\s*=\s*"https:\/\/www\.figma\.com\/api\/mcp\/asset\//.test(text);
     const hasImgUsage = /<img\b/i.test(text);
     if (!hasAssetConstants || !hasImgUsage) {
       errors.push(
-        `${cacheKey}: get_design_context 缺少资产常量或 <img> 使用（疑似被省略/占位）。如节点确实无资产，可设 FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS=0 关闭该检查 ${normalizeSlash(
+        `${cacheKey}: get_design_context 缺少资产常量或 <img> 使用（疑似被省略/占位）。如节点确实无资产，可设 FIGMA_MCP_REQUIRE_DESIGN_CONTEXT_ASSETS=0 或在项目配置里覆盖该 cacheKey ${normalizeSlash(
           fileAbs
         )}`
       );
     }
   }
 }
-
 function getManifestFilesMap(cacheKey, item, errors, deps) {
   const { resolveMaybeAbsolutePath, safeReadJson, normalizeSlash, path, fs } = deps;
+  const thresholds = resolveMcpEvidenceThresholds(cacheKey, deps);
   if (!item || !item.paths || !item.paths.meta) {
     errors.push(`${cacheKey}: source=figma-mcp 但缺少 paths.meta，无法定位 mcp-raw`);
     return null;
@@ -130,7 +294,7 @@ function getManifestFilesMap(cacheKey, item, errors, deps) {
       return;
     }
     if (toolName === "get_design_context") {
-      validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps);
+      validateDesignContextNotSkeleton(cacheKey, fileAbs, content, errors, deps, thresholds);
     }
     if (fileHashes && fileSizes) {
       const expectedHash = String(fileHashes[toolName] || "").trim().toLowerCase();
@@ -155,7 +319,6 @@ function getManifestFilesMap(cacheKey, item, errors, deps) {
   });
   return manifest.files;
 }
-
 function collectMissingToolEvidence(completeness, filesMap, normalizeCompletenessList, toolRequirements) {
   const missing = [];
   normalizeCompletenessList(completeness).forEach((dimension) => {
